@@ -311,16 +311,16 @@ class DatabaseManager:
             if cursor.fetchone()[0] == 0:
                 self._init_default_workflows(cursor)
             
-            # Standard-Admin-User erstellen (nur wenn noch kein User existiert)
+            # Standard-Users erstellen falls sie nicht existieren
             cursor.execute('SELECT COUNT(*) FROM users')
             if cursor.fetchone()[0] == 0:
-            admin_password_hash = generate_password_hash('admin123')
+                admin_password_hash = generate_password_hash('admin123')
                 cursor.execute('''
                     INSERT INTO users (username, password_hash, role)
                     VALUES (?, ?, ?)
                 ''', ('admin', admin_password_hash, 'admin'))
                 
-            user_password_hash = generate_password_hash('user123')
+                user_password_hash = generate_password_hash('user123')
                 cursor.execute('''
                     INSERT INTO users (username, password_hash, role)
                     VALUES (?, ?, ?)
@@ -584,51 +584,51 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             
             # Standard-Workflow Steps hinzufügen
             if workflow_data['name'] == 'Standard-Kurs-Erstellung':
-            default_steps = [
-                {
-                    'agent_role': 'content_creator',
+                default_steps = [
+                    {
+                        'agent_role': 'content_creator',
                         'step_name': 'Content Creation',
-                    'order_index': 1,
-                    'is_enabled': True,
-                    'is_parallel': False,
-                    'retry_attempts': 3,
-                    'timeout_seconds': 180,
-                    'execution_condition': None,
-                    'input_source': 'user_input',
+                        'order_index': 1,
+                        'is_enabled': True,
+                        'is_parallel': False,
+                        'retry_attempts': 3,
+                        'timeout_seconds': 180,
+                        'execution_condition': None,
+                        'input_source': 'user_input',
                         'output_target': 'raw_content'
-                },
-                {
+                    },
+                    {
                         'agent_role': 'didactic_expert',
                         'step_name': 'Didactic Optimization',
-                    'order_index': 2,
-                    'is_enabled': True,
-                    'is_parallel': False,
-                    'retry_attempts': 2,
-                    'timeout_seconds': 120,
-                    'execution_condition': None,
+                        'order_index': 2,
+                        'is_enabled': True,
+                        'is_parallel': False,
+                        'retry_attempts': 2,
+                        'timeout_seconds': 120,
+                        'execution_condition': None,
                         'input_source': 'raw_content',
                         'output_target': 'optimized_content'
-                },
-                {
+                    },
+                    {
                         'agent_role': 'quality_checker',
                         'step_name': 'Quality Review',
-                    'order_index': 3,
-                    'is_enabled': True,
-                    'is_parallel': False,
+                        'order_index': 3,
+                        'is_enabled': True,
+                        'is_parallel': False,
                         'retry_attempts': 2,
                         'timeout_seconds': 90,
-                    'execution_condition': None,
+                        'execution_condition': None,
                         'input_source': 'optimized_content',
                         'output_target': 'final_content'
-                },
-                {
+                    },
+                    {
                         'agent_role': 'supervisor',
                         'step_name': 'User Feedback',
-                    'order_index': 4,
-                    'is_enabled': True,
-                    'is_parallel': False,
+                        'order_index': 4,
+                        'is_enabled': True,
+                        'is_parallel': False,
                         'retry_attempts': 1,
-                    'timeout_seconds': 300,
+                        'timeout_seconds': 300,
                         'execution_condition': 'quality_score < 7.0',
                         'input_source': 'final_content',
                         'output_target': 'approved_content'
@@ -640,23 +640,23 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
                         'agent_role': 'content_creator',
                         'step_name': 'Quick Content Creation',
                         'order_index': 1,
-                    'is_enabled': True,
-                    'is_parallel': False,
+                        'is_enabled': True,
+                        'is_parallel': False,
                         'retry_attempts': 1,
                         'timeout_seconds': 60,
-                    'execution_condition': None,
+                        'execution_condition': None,
                         'input_source': 'user_input',
                         'output_target': 'quick_content'
-                },
-                {
-                    'agent_role': 'quality_checker',
+                    },
+                    {
+                        'agent_role': 'quality_checker',
                         'step_name': 'Basic Quality Check',
                         'order_index': 2,
-                    'is_enabled': True,
-                    'is_parallel': False,
+                        'is_enabled': True,
+                        'is_parallel': False,
                         'retry_attempts': 1,
                         'timeout_seconds': 30,
-                    'execution_condition': None,
+                        'execution_condition': None,
                         'input_source': 'quick_content',
                         'output_target': 'final_content'
                     }
