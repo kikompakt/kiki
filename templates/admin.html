@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - KI-Kursstudio{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        Administrator-Panel
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="lead">Willkommen im Admin-Bereich des Intelligenten KI-Kursstudios.</p>
+                    <p class="text-muted">Hier können Sie alle System-Einstellungen verwalten und konfigurieren.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Functions Grid -->
+    <div class="row g-4">
+        <!-- Agent Management -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-robot fa-3x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">Agenten-Verwaltung</h5>
+                    <p class="card-text text-muted">
+                        Verwalten Sie KI-Agenten mit erweiterten Behavior-Controls, 
+                        OpenAI-Parametern und Tool-Konfigurationen.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>OpenAI Parameter Control</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Behavior Presets</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Tool Management</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Workflow-Einstellungen</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('admin_assistants') }}" class="btn btn-primary w-100">
+                        <i class="fas fa-cogs me-2"></i>Agenten verwalten
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Management -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-project-diagram fa-3x text-info"></i>
+                    </div>
+                    <h5 class="card-title">Workflow-Verwaltung</h5>
+                    <p class="card-text text-muted">
+                        Konfigurieren Sie Agent-Abläufe, Sequenzen und 
+                        Orchestrierung für optimierte Workflows.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Agent-Sequenzierung</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Retry-Konfiguration</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Parallel-Execution</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Workflow-Templates</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('admin_workflows') }}" class="btn btn-info w-100">
+                        <i class="fas fa-project-diagram me-2"></i>Workflows verwalten
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-users fa-3x text-success"></i>
+                    </div>
+                    <h5 class="card-title">Benutzer-Verwaltung</h5>
+                    <p class="card-text text-muted">
+                        Verwalten Sie Benutzerkonten, Rollen und Zugriffsberechtigungen 
+                        im System.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Benutzer anlegen/bearbeiten</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Rollen-Management</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Zugriffskontrollen</small>
+                        <small class="d-block"><i class="fas fa-clock text-warning me-1"></i>Coming Soon</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-outline-secondary w-100" disabled>
+                        <i class="fas fa-users me-2"></i>In Entwicklung
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Settings -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-cog fa-3x text-warning"></i>
+                    </div>
+                    <h5 class="card-title">System-Einstellungen</h5>
+                    <p class="card-text text-muted">
+                        Konfigurieren Sie allgemeine System-Parameter, 
+                        API-Einstellungen und Performance-Optionen.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>OpenAI API Konfiguration</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Database Settings</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Performance Tuning</small>
+                        <small class="d-block"><i class="fas fa-clock text-warning me-1"></i>Coming Soon</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-outline-secondary w-100" disabled>
+                        <i class="fas fa-cog me-2"></i>In Entwicklung
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Management -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-database fa-3x text-info"></i>
+                    </div>
+                    <h5 class="card-title">Datenbank-Verwaltung</h5>
+                    <p class="card-text text-muted">
+                        Verwalten Sie die Datenbank, führen Sie Backups durch 
+                        und überwachen Sie die Datenintegrität.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Database Backup</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Schema Management</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Data Cleanup</small>
+                        <small class="d-block"><i class="fas fa-clock text-warning me-1"></i>Coming Soon</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-outline-secondary w-100" disabled>
+                        <i class="fas fa-database me-2"></i>In Entwicklung
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics & Monitoring -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-chart-line fa-3x text-danger"></i>
+                    </div>
+                    <h5 class="card-title">Analytics & Monitoring</h5>
+                    <p class="card-text text-muted">
+                        Überwachen Sie System-Performance, Usage-Statistiken 
+                        und Agent-Performance-Metriken.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Usage Analytics</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Performance Monitoring</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Error Tracking</small>
+                        <small class="d-block"><i class="fas fa-clock text-warning me-1"></i>Coming Soon</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-outline-secondary w-100" disabled>
+                        <i class="fas fa-chart-line me-2"></i>In Entwicklung
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- External LLM Management -->
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 admin-card">
+                <div class="card-body text-center">
+                    <div class="admin-icon mb-3">
+                        <i class="fas fa-microchip fa-3x text-secondary"></i>
+                    </div>
+                    <h5 class="card-title">LLM-Provider Verwaltung</h5>
+                    <p class="card-text text-muted">
+                        Verwalten Sie externe LLM-Provider wie Groq, Anthropic 
+                        und andere AI-Services.
+                    </p>
+                    <div class="admin-features mb-3">
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>API-Provider Management</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Cost Optimization</small>
+                        <small class="d-block"><i class="fas fa-check text-success me-1"></i>Fallback-Strategien</small>
+                        <small class="d-block"><i class="fas fa-clock text-warning me-1"></i>Coming Soon</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-outline-secondary w-100" disabled>
+                        <i class="fas fa-microchip me-2"></i>In Entwicklung
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tachometer-alt me-2"></i>System-Übersicht
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-primary">{{ assistants_count or '4' }}</h4>
+                                <small class="text-muted">Konfigurierte Agenten</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-success">{{ users_count or '2' }}</h4>
+                                <small class="text-muted">Aktive Benutzer</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-warning">{{ projects_count or '0' }}</h4>
+                                <small class="text-muted">Projekte gesamt</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-info">{{ chat_sessions_count or '0' }}</h4>
+                            <small class="text-muted">Chat-Sessions</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-card {
+    transition: all 0.3s ease;
+    border: 1px solid #e9ecef;
+}
+
+.admin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.admin-icon {
+    margin-bottom: 1rem;
+}
+
+.admin-features {
+    text-align: left;
+    max-width: 250px;
+    margin: 0 auto;
+}
+
+.admin-features small {
+    margin-bottom: 0.25rem;
+}
+
+.border-end {
+    border-right: 1px solid #dee2e6 !important;
+}
+
+@media (max-width: 768px) {
+    .border-end {
+        border-right: none !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+    }
+}
+</style>
+{% endblock %} 

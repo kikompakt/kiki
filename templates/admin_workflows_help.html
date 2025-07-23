@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow-Management Anleitung - KI Kursstudio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .help-section {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            margin-bottom: 2rem;
+        }
+        .help-step {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .help-step-header {
+            background: #007bff;
+            color: white;
+            padding: 1rem;
+            font-weight: 600;
+        }
+        .help-step-content {
+            padding: 1.5rem;
+        }
+        .feature-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            transition: transform 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .example-workflow {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .workflow-step-demo {
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 0.8rem;
+            margin: 0.5rem 0;
+            position: relative;
+        }
+        .step-arrow {
+            position: absolute;
+            right: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #007bff;
+            font-size: 1.2rem;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 1rem 0;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffecb5;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .success-box {
+            background: #d1edff;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .toc {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 1.5rem;
+            border-radius: 10px;
+            position: sticky;
+            top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-graduation-cap me-2"></i>KI Kursstudio Admin
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('admin_workflows') }}">
+                    <i class="fas fa-arrow-left me-1"></i>Zurück zu Workflows
+                </a>
+                <a class="nav-link" href="{{ url_for('admin_panel') }}">
+                    <i class="fas fa-home me-1"></i>Admin-Panel
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <div class="row">
+            <!-- Table of Contents -->
+            <div class="col-lg-3">
+                <div class="toc">
+                    <h5 class="mb-3">
+                        <i class="fas fa-list me-2"></i>Inhaltsverzeichnis
+                    </h5>
+                    <nav class="nav nav-pills flex-column">
+                        <a class="nav-link" href="#overview">📋 Überblick</a>
+                        <a class="nav-link" href="#getting-started">🚀 Erste Schritte</a>
+                        <a class="nav-link" href="#creating-workflows">➕ Workflows erstellen</a>
+                        <a class="nav-link" href="#step-configuration">⚙️ Step-Konfiguration</a>
+                        <a class="nav-link" href="#examples">💡 Praktische Beispiele</a>
+                        <a class="nav-link" href="#advanced">🔧 Erweiterte Features</a>
+                        <a class="nav-link" href="#troubleshooting">🔍 Problemlösung</a>
+                        <a class="nav-link" href="#best-practices">🎯 Best Practices</a>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-lg-9">
+                <div class="mb-4">
+                    <h1 class="display-6">
+                        <i class="fas fa-project-diagram text-primary me-3"></i>
+                        Workflow-Management Anleitung
+                    </h1>
+                    <p class="lead text-muted">
+                        Vollständige Anleitung für die Konfiguration und Verwaltung von Agent-Workflows
+                    </p>
+                </div>
+
+                <!-- Überblick -->
+                <section id="overview" class="help-section p-4 rounded">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-info-circle text-primary me-2"></i>
+                        Was ist das Workflow-Management-System?
+                    </h2>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <p class="mb-3">
+                                Das Workflow-Management-System ermöglicht es dir, <strong>vollständig zu konfigurieren</strong>, 
+                                wann und wie oft deine KI-Agenten zum Einsatz kommen. Anstatt einer festen Sequenz 
+                                kannst du nun flexible, bedingte und optimierte Abläufe erstellen.
+                            </p>
+                            
+                            <h5>🎯 Hauptfunktionen:</h5>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item"><i class="fas fa-check text-success me-2"></i><strong>Agent-Sequenzierung:</strong> Beliebige Reihenfolge definieren</li>
+                                <li class="list-group-item"><i class="fas fa-check text-success me-2"></i><strong>Retry-Konfiguration:</strong> Individuelle Wiederholungen pro Agent</li>
+                                <li class="list-group-item"><i class="fas fa-check text-success me-2"></i><strong>Timeout-Management:</strong> Zeitlimits für jeden Step</li>
+                                <li class="list-group-item"><i class="fas fa-check text-success me-2"></i><strong>Bedingte Ausführung:</strong> Agenten nur bei bestimmten Bedingungen</li>
+                                <li class="list-group-item"><i class="fas fa-check text-success me-2"></i><strong>Error-Handling:</strong> Strategien für Fehlerbehandlung</li>
+                                <li class="list-group-item"><i class="fas fa-check text-success me-2"></i><strong>Parallel-Execution:</strong> Mehrere Agenten gleichzeitig</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card feature-card">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-rocket fa-3x mb-3"></i>
+                                    <h5>Sofort startklar!</h5>
+                                    <p class="mb-0">2 Standard-Workflows sind bereits konfiguriert und einsatzbereit.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Erste Schritte -->
+                <section id="getting-started" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-play-circle text-success me-2"></i>
+                        Erste Schritte
+                    </h2>
+
+                    <div class="help-step">
+                        <div class="help-step-header">
+                            <i class="fas fa-eye me-2"></i>Schritt 1: Bestehende Workflows anzeigen
+                        </div>
+                        <div class="help-step-content">
+                            <p>Gehe zu <strong>Admin → Workflow-Verwaltung</strong> oder direkt zu:</p>
+                            <div class="code-block">
+                                http://127.0.0.1:5000/admin/workflows
+                            </div>
+                            <p>Du siehst eine Übersicht aller verfügbaren Workflows mit:</p>
+                            <ul>
+                                <li>📊 <strong>Workflow-Statistiken</strong> (Anzahl Steps, Status)</li>
+                                <li>🎯 <strong>Workflow-Karten</strong> mit Details und Quick-Actions</li>
+                                <li>⚙️ <strong>Filter-Optionen</strong> nach Typ und Status</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="help-step">
+                        <div class="help-step-header">
+                            <i class="fas fa-edit me-2"></i>Schritt 2: Standard-Workflow bearbeiten
+                        </div>
+                        <div class="help-step-content">
+                            <p>Klicke auf den <span class="badge bg-primary">Edit-Button</span> beim "Standard-Kurs-Erstellung" Workflow.</p>
+                            <p>Du siehst jetzt:</p>
+                            <ul>
+                                <li>📝 <strong>Workflow-Einstellungen</strong> (Name, Typ, Beschreibung)</li>
+                                <li>📋 <strong>Visual Designer</strong> mit allen konfigurierten Steps</li>
+                                <li>⚙️ <strong>Step-Details</strong> (Agent, Retry, Timeout, Bedingungen)</li>
+                            </ul>
+                            
+                            <div class="example-workflow">
+                                <h6><i class="fas fa-eye me-2"></i>Standard-Workflow im Detail:</h6>
+                                <div class="d-flex align-items-center flex-wrap">
+                                    <div class="workflow-step-demo">
+                                        <strong>1. Content Creator</strong><br>
+                                        <small>3 Retries, 180s Timeout</small>
+                                        <i class="fas fa-arrow-right step-arrow"></i>
+                                    </div>
+                                    <div class="workflow-step-demo">
+                                        <strong>2. Didactic Expert</strong><br>
+                                        <small>2 Retries, 120s Timeout</small>
+                                        <i class="fas fa-arrow-right step-arrow"></i>
+                                    </div>
+                                    <div class="workflow-step-demo">
+                                        <strong>3. Quality Checker</strong><br>
+                                        <small>2 Retries, 90s Timeout</small>
+                                        <i class="fas fa-arrow-right step-arrow"></i>
+                                    </div>
+                                    <div class="workflow-step-demo">
+                                        <strong>4. User Feedback</strong><br>
+                                        <small>Nur bei Score < 7.0</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="help-step">
+                        <div class="help-step-header">
+                            <i class="fas fa-cog me-2"></i>Schritt 3: Step-Parameter anpassen
+                        </div>
+                        <div class="help-step-content">
+                            <p>Klicke auf <span class="badge bg-secondary">Edit-Button</span> bei einem Step um zu konfigurieren:</p>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>⚙️ Execution-Parameter:</h6>
+                                    <ul>
+                                        <li><strong>Retry-Attempts:</strong> 1-10 Versuche</li>
+                                        <li><strong>Timeout:</strong> 30-600 Sekunden</li>
+                                        <li><strong>Error-Handling:</strong> Graceful/Retry/Stop/Skip</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>🎯 Conditional Logic:</h6>
+                                    <ul>
+                                        <li><strong>Execution-Condition:</strong> z.B. "quality_score < 7.0"</li>
+                                        <li><strong>Input-Source:</strong> Wo kommen die Daten her?</li>
+                                        <li><strong>Output-Target:</strong> Wo werden Ergebnisse gespeichert?</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Workflows erstellen -->
+                <section id="creating-workflows" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-plus-circle text-success me-2"></i>
+                        Neue Workflows erstellen
+                    </h2>
+
+                    <div class="help-step">
+                        <div class="help-step-header">
+                            <i class="fas fa-magic me-2"></i>Workflow-Erstellung Schritt-für-Schritt
+                        </div>
+                        <div class="help-step-content">
+                            <h5>1. Neuen Workflow starten</h5>
+                            <p>Klicke auf <span class="btn btn-success btn-sm">➕ Neuer Workflow</span> und fülle aus:</p>
+                            <ul>
+                                <li><strong>Name:</strong> Eindeutiger Name (z.B. "Schnelle Blogpost-Erstellung")</li>
+                                <li><strong>Beschreibung:</strong> Was macht dieser Workflow?</li>
+                                <li><strong>Typ:</strong> Sequential, Parallel oder Conditional</li>
+                                <li><strong>Status:</strong> Aktiv/Inaktiv, Standard ja/nein</li>
+                            </ul>
+
+                            <h5 class="mt-4">2. Steps hinzufügen</h5>
+                            <p>Klicke auf <span class="btn btn-success btn-sm">+ Step hinzufügen</span> für jeden Agent:</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>📝 Basis-Konfiguration:</h6>
+                                    <ul>
+                                        <li>Step-Name (z.B. "Content Creation")</li>
+                                        <li>Agent auswählen (Content Creator, etc.)</li>
+                                        <li>Reihenfolge (Order Index)</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>⚙️ Erweiterte Einstellungen:</h6>
+                                    <ul>
+                                        <li>Retry-Attempts und Timeouts</li>
+                                        <li>Execution-Conditions</li>
+                                        <li>Input/Output-Mapping</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <h5 class="mt-4">3. Workflow speichern und testen</h5>
+                            <p>Nach dem Speichern ist der Workflow sofort verfügbar (wenn aktiviert).</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Step-Konfiguration -->
+                <section id="step-configuration" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-cogs text-warning me-2"></i>
+                        Detaillierte Step-Konfiguration
+                    </h2>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <i class="fas fa-redo me-2"></i>Retry & Error-Handling
+                                </div>
+                                <div class="card-body">
+                                    <h6>Retry-Attempts (1-10):</h6>
+                                    <ul>
+                                        <li><strong>1-2:</strong> Für einfache, schnelle Tasks</li>
+                                        <li><strong>3-5:</strong> Standard für die meisten Agenten</li>
+                                        <li><strong>6-10:</strong> Für kritische, komplexe Aufgaben</li>
+                                    </ul>
+
+                                    <h6>Error-Handling-Strategien:</h6>
+                                    <ul>
+                                        <li><strong>Graceful:</strong> Fehler loggen, fortfahren</li>
+                                        <li><strong>Retry:</strong> Automatisch wiederholen</li>
+                                        <li><strong>Stop:</strong> Workflow sofort beenden</li>
+                                        <li><strong>Skip:</strong> Step überspringen, weiter</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <i class="fas fa-clock me-2"></i>Timeout-Management
+                                </div>
+                                <div class="card-body">
+                                    <h6>Empfohlene Timeouts:</h6>
+                                    <ul>
+                                        <li><strong>30-60s:</strong> Einfache Text-Generierung</li>
+                                        <li><strong>90-180s:</strong> Standard Content Creation</li>
+                                        <li><strong>180-300s:</strong> Komplexe Qualitätsprüfung</li>
+                                        <li><strong>300-600s:</strong> User-Feedback oder Research</li>
+                                    </ul>
+
+                                    <div class="warning-box">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Wichtig:</strong> Zu kurze Timeouts können zu Fehlern führen, 
+                                        zu lange verlangsamen das System.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4">
+                        <div class="card-header bg-success text-white">
+                            <i class="fas fa-code-branch me-2"></i>Conditional Execution
+                        </div>
+                        <div class="card-body">
+                            <h6>Ausführungs-Bedingungen (JavaScript-ähnlich):</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>📊 Quality-basiert:</h6>
+                                    <div class="code-block">
+quality_score < 7.0
+overall_rating >= 8.5
+structure_score > 6.0
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>📏 Content-basiert:</h6>
+                                    <div class="code-block">
+content_length < 1000
+word_count > 500
+has_examples == false
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-muted small">
+                                <i class="fas fa-lightbulb me-1"></i>
+                                Bedingungen sind optional. Ohne Bedingung wird der Step immer ausgeführt.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Praktische Beispiele -->
+                <section id="examples" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                        Praktische Workflow-Beispiele
+                    </h2>
+
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="example-workflow">
+                                <h5><i class="fas fa-rocket me-2"></i>Speed-Optimierter Workflow</h5>
+                                <p><strong>Ziel:</strong> Maximale Geschwindigkeit für einfache Inhalte</p>
+                                
+                                <div class="workflow-step-demo">
+                                    <strong>1. Content Creator</strong><br>
+                                    <small>1 Retry, 60s Timeout</small>
+                                    <i class="fas fa-arrow-right step-arrow"></i>
+                                </div>
+                                <div class="workflow-step-demo">
+                                    <strong>2. Quality Checker</strong><br>
+                                    <small>1 Retry, 30s Timeout</small>
+                                </div>
+
+                                <div class="success-box mt-3">
+                                    <strong>Einsatz:</strong> Blog-Posts, schnelle FAQ, einfache Tutorials
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="example-workflow">
+                                <h5><i class="fas fa-shield-alt me-2"></i>Qualitäts-Optimierter Workflow</h5>
+                                <p><strong>Ziel:</strong> Maximale Qualität für wichtige Inhalte</p>
+                                
+                                <div class="workflow-step-demo">
+                                    <strong>1. Content Creator</strong><br>
+                                    <small>3 Retries, 180s Timeout</small>
+                                    <i class="fas fa-arrow-right step-arrow"></i>
+                                </div>
+                                <div class="workflow-step-demo">
+                                    <strong>2. Didactic Expert</strong><br>
+                                    <small>2 Retries, 120s Timeout</small>
+                                    <i class="fas fa-arrow-right step-arrow"></i>
+                                </div>
+                                <div class="workflow-step-demo">
+                                    <strong>3. Quality Checker</strong><br>
+                                    <small>3 Retries, 90s Timeout</small>
+                                    <i class="fas fa-arrow-right step-arrow"></i>
+                                </div>
+                                <div class="workflow-step-demo">
+                                    <strong>4. User Feedback</strong><br>
+                                    <small>Bedingung: quality_score < 8.0</small>
+                                </div>
+
+                                <div class="success-box mt-3">
+                                    <strong>Einsatz:</strong> Professionelle Kurse, wichtige Dokumentation
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-workflow mt-4">
+                        <h5><i class="fas fa-sync-alt me-2"></i>Iterativer Verbesserungs-Workflow</h5>
+                        <p><strong>Ziel:</strong> Kontinuierliche Verbesserung bis Qualitätsziel erreicht</p>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="d-flex align-items-center flex-wrap">
+                                    <div class="workflow-step-demo">
+                                        <strong>1. Content Creator</strong><br>
+                                        <small>Initial Content</small>
+                                        <i class="fas fa-arrow-right step-arrow"></i>
+                                    </div>
+                                    <div class="workflow-step-demo">
+                                        <strong>2. Quality Checker</strong><br>
+                                        <small>Bewertung</small>
+                                        <i class="fas fa-arrow-right step-arrow"></i>
+                                    </div>
+                                    <div class="workflow-step-demo">
+                                        <strong>3. Didactic Expert</strong><br>
+                                        <small>Bedingung: score < 8.0</small>
+                                        <i class="fas fa-arrow-right step-arrow"></i>
+                                    </div>
+                                    <div class="workflow-step-demo">
+                                        <strong>4. Quality Checker (erneut)</strong><br>
+                                        <small>Re-Check nach Verbesserung</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="code-block mt-3">
+Step 3 Bedingung: quality_score < 8.0 AND improvement_cycles < 3
+Step 4 Bedingung: previous_step_executed == true
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Erweiterte Features -->
+                <section id="advanced" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-magic text-purple me-2"></i>
+                        Erweiterte Features
+                    </h2>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-bolt me-2"></i>Parallel-Execution (Experimentell)
+                        </div>
+                        <div class="card-body">
+                            <p>Führe mehrere Agenten gleichzeitig aus für bessere Performance:</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>✅ Geeignet für:</h6>
+                                    <ul>
+                                        <li>Unabhängige Content-Bereiche</li>
+                                        <li>Verschiedene Qualitätschecks</li>
+                                        <li>Multiple Formatierungen</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>❌ Nicht geeignet für:</h6>
+                                    <ul>
+                                        <li>Sequenzielle Abhängigkeiten</li>
+                                        <li>Content-Builds auf vorherigen Steps</li>
+                                        <li>Shared State zwischen Agenten</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="warning-box">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Hinweis:</strong> Parallel-Execution ist experimentell und sollte 
+                                zunächst in unkritischen Workflows getestet werden.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <i class="fas fa-exchange-alt me-2"></i>Input/Output-Mapping
+                        </div>
+                        <div class="card-body">
+                            <p>Definiere präzise Datenflüsse zwischen Steps:</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>📥 Input-Quellen:</h6>
+                                    <ul>
+                                        <li><strong>user_input:</strong> Original User-Anfrage</li>
+                                        <li><strong>previous_step:</strong> Direkt vom letzten Step</li>
+                                        <li><strong>raw_content:</strong> Unbearbeiteter Content</li>
+                                        <li><strong>optimized_content:</strong> Didaktisch optimiert</li>
+                                        <li><strong>final_content:</strong> Quality-geprüft</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>📤 Output-Ziele:</h6>
+                                    <ul>
+                                        <li><strong>raw_content:</strong> Erste Content-Version</li>
+                                        <li><strong>optimized_content:</strong> Didaktisch verbessert</li>
+                                        <li><strong>final_content:</strong> Quality-approved</li>
+                                        <li><strong>approved_content:</strong> User-freigegeben</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Troubleshooting -->
+                <section id="troubleshooting" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-wrench text-danger me-2"></i>
+                        Problemlösung & Troubleshooting
+                    </h2>
+
+                    <div class="accordion" id="troubleshootingAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#problem1">
+                                    🚫 Workflow startet nicht
+                                </button>
+                            </h2>
+                            <div id="problem1" class="accordion-collapse collapse show">
+                                <div class="accordion-body">
+                                    <h6>Mögliche Ursachen:</h6>
+                                    <ul>
+                                        <li>Workflow ist nicht aktiv → Aktivieren in der Workflow-Liste</li>
+                                        <li>Fehlende Agent-Konfiguration → Prüfe ob alle referenzierten Agenten existieren</li>
+                                        <li>Ungültige Step-Reihenfolge → Order Index muss eindeutig und lückenlos sein</li>
+                                    </ul>
+                                    <h6>Lösung:</h6>
+                                    <ol>
+                                        <li>Gehe zu Workflow-Management → Status prüfen</li>
+                                        <li>Bearbeite Workflow → Prüfe alle Steps auf Vollständigkeit</li>
+                                        <li>Speichere und aktiviere erneut</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#problem2">
+                                    ⏱️ Steps laufen in Timeout
+                                </button>
+                            </h2>
+                            <div id="problem2" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <h6>Typische Ursachen:</h6>
+                                    <ul>
+                                        <li>Zu kurze Timeout-Einstellungen</li>
+                                        <li>Komplexe Aufgaben mit unzureichender Zeit</li>
+                                        <li>Agent-Überlastung bei vielen parallelen Requests</li>
+                                    </ul>
+                                    <h6>Empfohlene Timeouts:</h6>
+                                    <div class="code-block">
+Content Creator: 120-180s
+Didactic Expert: 90-120s  
+Quality Checker: 60-90s
+User Feedback: 300s+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#problem3">
+                                    🔄 Zu viele Retries
+                                </button>
+                            </h2>
+                            <div id="problem3" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <h6>Optimiere Retry-Strategien:</h6>
+                                    <ul>
+                                        <li><strong>Content Creation:</strong> 3-5 Retries (kann komplex sein)</li>
+                                        <li><strong>Quality Checks:</strong> 2-3 Retries (meist deterministisch)</li>
+                                        <li><strong>User Feedback:</strong> 1 Retry (menschliche Interaktion)</li>
+                                    </ul>
+                                    <div class="warning-box">
+                                        Zu viele Retries können das System verlangsamen und Kosten erhöhen.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#problem4">
+                                    📊 Qualitätsziele nicht erreicht
+                                </button>
+                            </h2>
+                            <div id="problem4" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <h6>Workflow-Optimierungen:</h6>
+                                    <ol>
+                                        <li><strong>Füge zusätzliche Quality-Steps hinzu</strong> nach kritischen Phasen</li>
+                                        <li><strong>Setze strengere Bedingungen:</strong> quality_score < 8.0 statt < 7.0</li>
+                                        <li><strong>Erhöhe Retry-Attempts</strong> für Quality-kritische Steps</li>
+                                        <li><strong>Integriere iterative Verbesserung</strong> mit Loop-back zu Didactic Expert</li>
+                                    </ol>
+                                    <div class="success-box">
+                                        <strong>Pro-Tipp:</strong> Nutze bedingte User-Feedback-Steps für finale Qualitätskontrolle.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Best Practices -->
+                <section id="best-practices" class="mb-5">
+                    <h2 class="h3 mb-4">
+                        <i class="fas fa-star text-warning me-2"></i>
+                        Best Practices & Empfehlungen
+                    </h2>
+
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-success text-white">
+                                    <i class="fas fa-check-circle me-2"></i>DO's - Bewährte Praktiken
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            <strong>Starte mit Standard-Workflows</strong> und passe sie an deine Bedürfnisse an
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            <strong>Teste neue Workflows</strong> zunächst mit einfachen Inhalten
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            <strong>Nutze aussagekräftige Namen</strong> für Workflows und Steps
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            <strong>Dokumentiere komplexe Bedingungen</strong> in der Beschreibung
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            <strong>Überwache Performance</strong> und optimiere regelmäßig
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            <strong>Erstelle spezielle Workflows</strong> für verschiedene Content-Typen
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card h-100">
+                                <div class="card-header bg-danger text-white">
+                                    <i class="fas fa-times-circle me-2"></i>DON'Ts - Häufige Fehler vermeiden
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled">
+                                        <li class="mb-2">
+                                            <i class="fas fa-times text-danger me-2"></i>
+                                            <strong>Vermeide zu komplexe Bedingungen</strong> die schwer zu debuggen sind
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-times text-danger me-2"></i>
+                                            <strong>Setze nicht zu kurze Timeouts</strong> um Fehlschläge zu vermeiden
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-times text-danger me-2"></i>
+                                            <strong>Übertreibe es nicht mit Retries</strong> - das verlangsamt das System
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-times text-danger me-2"></i>
+                                            <strong>Lösche nicht Standard-Workflows</strong> - deaktiviere sie stattdessen
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-times text-danger me-2"></i>
+                                            <strong>Verwende Parallel-Execution nicht</strong> für abhängige Steps
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-times text-danger me-2"></i>
+                                            <strong>Vergiss nicht zu testen</strong> nach größeren Änderungen
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="success-box mt-4">
+                        <h5><i class="fas fa-lightbulb me-2"></i>Pro-Tipps für optimale Workflows:</h5>
+                        <ol>
+                            <li><strong>Qualitäts-Gates:</strong> Füge Quality-Checks nach jedem wichtigen Step hinzu</li>
+                            <li><strong>Fail-Fast-Prinzip:</strong> Erkenne Probleme früh mit strengen Initial-Checks</li>
+                            <li><strong>Adaptive Timeouts:</strong> Längere Timeouts für komplexe, kürzere für einfache Tasks</li>
+                            <li><strong>Error-Recovery:</strong> Nutze "Graceful" Handling für bessere User Experience</li>
+                            <li><strong>Conditional Optimization:</strong> Springe schwere Steps bei guter Initial-Qualität über</li>
+                        </ol>
+                    </div>
+                </section>
+
+                <!-- Footer -->
+                <div class="text-center py-4">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('admin_workflows') }}" class="btn btn-primary">
+                            <i class="fas fa-project-diagram me-2"></i>Zu den Workflows
+                        </a>
+                        <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-2"></i>Admin-Panel
+                        </a>
+                    </div>
+                    <p class="text-muted mt-3 mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Bei Fragen oder Problemen steht dir das vollständige Workflow-Management-System zur Verfügung.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Smooth scrolling for TOC links
+        document.querySelectorAll('.toc a[href^="#"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Active TOC item highlighting
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('section[id]');
+            const tocLinks = document.querySelectorAll('.toc a[href^="#"]');
+            
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (scrollY >= (sectionTop - 200)) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            tocLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

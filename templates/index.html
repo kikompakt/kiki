@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KI-Kurs Generator | Multi-Agenten Content Creator</title>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .card-header h2 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        .card-body {
+            padding: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 30px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .topic-input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            background: #f9fafb;
+        }
+
+        .topic-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .examples {
+            margin-top: 15px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border-left: 4px solid #4f46e5;
+        }
+
+        .examples h4 {
+            color: #4f46e5;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .examples ul {
+            list-style: none;
+        }
+
+        .examples li {
+            margin: 8px 0;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid #e5e7eb;
+        }
+
+        .examples li:hover {
+            background: #4f46e5;
+            color: white;
+            transform: translateX(5px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-area {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .status-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 25px;
+            border-left: 4px solid #10b981;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .agent-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .agent-step {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+
+        .agent-step.active {
+            border-color: #4f46e5;
+            background: #f0f9ff;
+        }
+
+        .agent-step.completed {
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+
+        .agent-step i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* Quality Dashboard Styles */
+        .quality-dashboard {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 30px;
+            margin: 20px 0;
+        }
+
+        .quality-dashboard h3 {
+            color: #374151;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quality-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .quality-metric {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
+        }
+
+        .quality-metric h4 {
+            color: #475569;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .quality-score {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .quality-score.excellent { color: #10b981; }
+        .quality-score.good { color: #059669; }
+        .quality-score.fair { color: #f59e0b; }
+        .quality-score.poor { color: #ef4444; }
+
+        .quality-evolution {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+
+        .quality-step {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .quality-step:last-child {
+            border-bottom: none;
+        }
+
+        .quality-recommendations {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fef3c7;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .quality-recommendations h5 {
+            color: #92400e;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .quality-recommendations ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .quality-recommendations li {
+            margin-bottom: 5px;
+            color: #451a03;
+        }
+
+        .approval-section {
+            display: none;
+            background: #fffbeb;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 20px;
+        }
+
+        .approval-section h3 {
+            color: #d97706;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+        }
+
+        .content-preview {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+        }
+
+        .approval-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .btn-approve, .btn-reject {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-approve {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
+
+        .btn-reject {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid #a7f3d0;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.7;
+            margin-top: 40px;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .card-body {
+                padding: 20px;
+            }
+            
+            .approval-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-robot"></i> KI-Kurs Generator</h1>
+            <p>Erstelle professionelle Lerninhalte mit KI-Agenten</p>
+        </div>
+
+        <!-- Main Input Card -->
+        <div class="main-card">
+            <div class="card-header">
+                <h2><i class="fas fa-graduation-cap"></i> Neuen Kurs erstellen</h2>
+                <p>Gib ein Thema ein und lass unsere KI-Agenten einen strukturierten Kurs erstellen</p>
+            </div>
+            
+            <div class="card-body">
+                <form id="courseForm">
+                    <div class="input-group">
+                        <label for="topicInput">
+                            <i class="fas fa-lightbulb"></i> Kursthema
+                        </label>
+                        <input 
+                            type="text" 
+                            id="topicInput" 
+                            class="topic-input" 
+                            placeholder="z.B. Machine Learning für Anfänger"
+                            required
+                        >
+                        
+                        <div class="examples">
+                            <h4><i class="fas fa-star"></i> Beispiele (klicken zum Auswählen):</h4>
+                            <ul>
+                                <li onclick="setTopic('Python-Programmierung für Einsteiger')">
+                                    <i class="fab fa-python"></i> Python-Programmierung für Einsteiger
+                                </li>
+                                <li onclick="setTopic('Digital Marketing Grundlagen')">
+                                    <i class="fas fa-chart-line"></i> Digital Marketing Grundlagen
+                                </li>
+                                <li onclick="setTopic('Projektmanagement mit Scrum')">
+                                    <i class="fas fa-tasks"></i> Projektmanagement mit Scrum
+                                </li>
+                                <li onclick="setTopic('Fotografiekurs für Anfänger')">
+                                    <i class="fas fa-camera"></i> Fotografiekurs für Anfänger
+                                </li>
+                                <li onclick="setTopic('Fitnesstrainer Ausbildung')">
+                                    <i class="fas fa-dumbbell"></i> Fitnesstrainer Ausbildung
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary" id="startBtn">
+                        <i class="fas fa-rocket"></i>
+                        Kurs erstellen
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Status Area -->
+        <div class="status-area" id="statusArea">
+            <div class="status-card">
+                <h3><i class="fas fa-cogs"></i> <span id="statusTitle">Status</span></h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar"></div>
+                </div>
+                <p id="statusMessage">Bereit für Start...</p>
+                
+                <!-- Agent Steps -->
+                <div class="agent-steps">
+                    <div class="agent-step" id="step1">
+                        <i class="fas fa-pencil-alt"></i>
+                        <div>Content Creator</div>
+                    </div>
+                    <div class="agent-step" id="step2">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                        <div>Didactic Expert</div>
+                    </div>
+                    <div class="agent-step" id="step3">
+                        <i class="fas fa-search"></i>
+                        <div>Critical Thinker</div>
+                    </div>
+                    <div class="agent-step" id="step4">
+                        <i class="fas fa-user-check"></i>
+                        <div>Human Approval</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quality Dashboard -->
+        <div class="quality-dashboard" id="qualityDashboard">
+            <h3><i class="fas fa-chart-line"></i> Qualitäts-Monitoring</h3>
+            
+            <div class="quality-metrics">
+                <div class="quality-metric">
+                    <h4>Gesamt-Score</h4>
+                    <div class="quality-score" id="overallScore">--</div>
+                    <small>von 100</small>
+                </div>
+                <div class="quality-metric">
+                    <h4>Lesbarkeit</h4>
+                    <div class="quality-score" id="readabilityScore">--</div>
+                    <small>von 100</small>
+                </div>
+                <div class="quality-metric">
+                    <h4>Struktur</h4>
+                    <div class="quality-score" id="structureScore">--</div>
+                    <small>von 100</small>
+                </div>
+                <div class="quality-metric">
+                    <h4>Konsistenz</h4>
+                    <div class="quality-score" id="consistencyScore">--</div>
+                    <small>von 100</small>
+                </div>
+            </div>
+            
+            <div class="quality-evolution" id="qualityEvolution">
+                <h5><i class="fas fa-history"></i> Qualitäts-Entwicklung</h5>
+                <div id="qualitySteps"></div>
+            </div>
+            
+            <div class="quality-recommendations" id="qualityRecommendations" style="display: none;">
+                <h5><i class="fas fa-lightbulb"></i> Empfehlungen</h5>
+                <ul id="recommendationsList"></ul>
+            </div>
+        </div>
+
+        <!-- Approval Section -->
+        <div class="approval-section" id="approvalSection">
+            <h3><i class="fas fa-clipboard-check"></i> Freigabe erforderlich</h3>
+            <p>Prüfe den erstellten Inhalt und das Feedback. Soll der Kurs freigegeben werden?</p>
+            
+            <div class="content-preview" id="contentPreview"></div>
+            
+            <div class="approval-buttons">
+                <button class="btn-approve" onclick="approveContent(true)">
+                    <i class="fas fa-check"></i> Freigeben
+                </button>
+                <button class="btn-reject" onclick="approveContent(false)">
+                    <i class="fas fa-times"></i> Überarbeiten
+                </button>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div id="alertContainer"></div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p><i class="fas fa-bolt"></i> Powered by OpenAI & Multi-Agent Architecture</p>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO Verbindung mit expliziter Konfiguration
+        const socket = io({
+            transports: ['websocket', 'polling'],
+            upgrade: true,
+            autoConnect: true
+        });
+        
+        // DOM Elemente
+        const courseForm = document.getElementById('courseForm');
+        const topicInput = document.getElementById('topicInput');
+        const startBtn = document.getElementById('startBtn');
+        const statusArea = document.getElementById('statusArea');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusMessage = document.getElementById('statusMessage');
+        const progressBar = document.getElementById('progressBar');
+        const approvalSection = document.getElementById('approvalSection');
+        const contentPreview = document.getElementById('contentPreview');
+        const alertContainer = document.getElementById('alertContainer');
+        
+        // Quality Dashboard Elemente
+        const qualityDashboard = document.getElementById('qualityDashboard');
+        const overallScore = document.getElementById('overallScore');
+        const readabilityScore = document.getElementById('readabilityScore');
+        const structureScore = document.getElementById('structureScore');
+        const consistencyScore = document.getElementById('consistencyScore');
+        const qualitySteps = document.getElementById('qualitySteps');
+        const qualityRecommendations = document.getElementById('qualityRecommendations');
+        const recommendationsList = document.getElementById('recommendationsList');
+        
+        // Status Tracking
+        let currentStep = 0;
+        const totalSteps = 4;
+        
+        // Quality Tracking
+        let qualityHistory = [];
+        
+        // Form Submit Handler
+        courseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const topic = topicInput.value.trim();
+            
+            if (!topic) {
+                showAlert('Bitte gib ein Kursthema ein!', 'error');
+                return;
+            }
+            
+            startWorkflow(topic);
+        });
+        
+        // Workflow starten
+        function startWorkflow(topic) {
+            // UI Updates
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<div class="spinner"></div> Starte...';
+            statusArea.style.display = 'block';
+            approvalSection.style.display = 'none';
+            
+            // Reset Steps
+            currentStep = 0;
+            updateProgress();
+            resetSteps();
+            
+            // Socket Event senden
+            socket.emit('start_workflow', { topic: topic });
+        }
+        
+        // Beispiel-Thema setzen
+        function setTopic(topic) {
+            topicInput.value = topic;
+            topicInput.focus();
+        }
+        
+        // Progress Update
+        function updateProgress() {
+            const progress = (currentStep / totalSteps) * 100;
+            progressBar.style.width = progress + '%';
+        }
+        
+        // Steps Reset
+        function resetSteps() {
+            for (let i = 1; i <= totalSteps; i++) {
+                const step = document.getElementById('step' + i);
+                step.classList.remove('active', 'completed');
+            }
+        }
+        
+        // Step Aktivieren
+        function activateStep(step) {
+            const stepEl = document.getElementById('step' + step);
+            if (stepEl) {
+                stepEl.classList.add('active');
+                stepEl.classList.remove('completed');
+            }
+        }
+        
+        // Step Abschließen
+        function completeStep(step) {
+            const stepEl = document.getElementById('step' + step);
+            if (stepEl) {
+                stepEl.classList.remove('active');
+                stepEl.classList.add('completed');
+            }
+        }
+        
+        // Alert anzeigen
+        function showAlert(message, type = 'error') {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'check-circle'}"></i> ${message}`;
+            
+            alertContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        // Quality Dashboard Functions
+        function getScoreClass(score) {
+            if (score >= 80) return 'excellent';
+            if (score >= 60) return 'good';
+            if (score >= 40) return 'fair';
+            return 'poor';
+        }
+        
+        function updateQualityDisplay(data) {
+            // Overall Score
+            overallScore.textContent = Math.round(data.overall_score);
+            overallScore.className = 'quality-score ' + getScoreClass(data.overall_score);
+            
+            // Individual Scores
+            readabilityScore.textContent = Math.round(data.readability);
+            readabilityScore.className = 'quality-score ' + getScoreClass(data.readability);
+            
+            structureScore.textContent = Math.round(data.structure);
+            structureScore.className = 'quality-score ' + getScoreClass(data.structure);
+            
+            consistencyScore.textContent = Math.round(data.consistency);
+            consistencyScore.className = 'quality-score ' + getScoreClass(data.consistency);
+            
+            // Show dashboard
+            qualityDashboard.style.display = 'block';
+        }
+        
+        function addQualityStep(step, overallScore) {
+            const stepDiv = document.createElement('div');
+            stepDiv.className = 'quality-step';
+            stepDiv.innerHTML = `
+                <span><strong>${step}</strong></span>
+                <span class="quality-score ${getScoreClass(overallScore)}">${Math.round(overallScore)}/100</span>
+            `;
+            qualitySteps.appendChild(stepDiv);
+        }
+        
+        function updateRecommendations(recommendations) {
+            if (recommendations && recommendations.length > 0) {
+                recommendationsList.innerHTML = '';
+                recommendations.forEach(rec => {
+                    const li = document.createElement('li');
+                    li.textContent = rec;
+                    recommendationsList.appendChild(li);
+                });
+                qualityRecommendations.style.display = 'block';
+            } else {
+                qualityRecommendations.style.display = 'none';
+            }
+        }
+
+        // Content Approval
+        function approveContent(approved) {
+            approvalSection.style.display = 'none';
+            socket.emit('approval_decision', { approved: approved });
+            
+            if (approved) {
+                showAlert('Inhalt wurde freigegeben! 🎉', 'success');
+            } else {
+                showAlert('Inhalt zur Überarbeitung markiert.', 'error');
+            }
+        }
+        
+        // Socket Event Handlers
+        socket.on('connect', function() {
+            console.log('✅ Socket.IO verbunden!');
+            showAlert('Verbindung hergestellt', 'success');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('❌ Socket.IO getrennt!');
+            showAlert('Verbindung unterbrochen', 'error');
+        });
+        
+        socket.on('connected', function(data) {
+            console.log('Verbunden:', data.message);
+        });
+        
+        socket.on('status_update', function(data) {
+            statusMessage.textContent = data.message;
+            
+            switch(data.status) {
+                case 'initializing':
+                    statusTitle.textContent = 'Initialisierung...';
+                    break;
+                    
+                case 'started':
+                    statusTitle.textContent = 'Workflow läuft';
+                    currentStep = 1;
+                    activateStep(1);
+                    updateProgress();
+                    break;
+                    
+                case 'working':
+                    // Bestimme aktuellen Schritt basierend auf Agent
+                    if (data.message.includes('Content Creator')) {
+                        currentStep = 1;
+                        activateStep(1);
+                    } else if (data.message.includes('Didactic Expert')) {
+                        currentStep = 2;
+                        activateStep(2);
+                    } else if (data.message.includes('Critical Thinker')) {
+                        currentStep = 3;
+                        activateStep(3);
+                    }
+                    updateProgress();
+                    break;
+                    
+                case 'completed_step':
+                    completeStep(currentStep);
+                    break;
+                    
+                case 'approval_needed':
+                    currentStep = 4;
+                    activateStep(4);
+                    updateProgress();
+                    statusTitle.textContent = 'Freigabe erforderlich';
+                    
+                    // Content anzeigen
+                    const content = data.data.final_content + '\n\n--- FEEDBACK ---\n' + data.data.feedback;
+                    contentPreview.textContent = content;
+                    approvalSection.style.display = 'block';
+                    break;
+                    
+                case 'approved':
+                    completeStep(4);
+                    currentStep = totalSteps;
+                    updateProgress();
+                    statusTitle.textContent = 'Abgeschlossen';
+                    resetUI();
+                    break;
+                    
+                case 'rejected':
+                    statusTitle.textContent = 'Überarbeitung erforderlich';
+                    resetUI();
+                    break;
+                    
+                case 'completed':
+                    statusTitle.textContent = 'Erfolgreich abgeschlossen';
+                    currentStep = totalSteps;
+                    updateProgress();
+                    resetUI();
+                    showAlert('Kurs erfolgreich erstellt! 🎓', 'success');
+                    break;
+            }
+        });
+        
+        // Quality Update Handler
+        socket.on('quality_update', function(data) {
+            console.log('Quality Update:', data);
+            
+            // Update current quality display
+            updateQualityDisplay(data);
+            
+            // Add to quality history
+            qualityHistory.push(data);
+            addQualityStep(data.step, data.overall_score);
+            
+            // Update recommendations
+            updateRecommendations(data.recommendations);
+            
+            // Show quality improvement notification
+            const prevScore = qualityHistory.length > 1 ? qualityHistory[qualityHistory.length - 2].overall_score : 0;
+            const improvement = data.overall_score - prevScore;
+            
+            if (improvement > 0 && qualityHistory.length > 1) {
+                showAlert(`🎯 Qualität verbessert: +${Math.round(improvement)} Punkte!`, 'success');
+            }
+        });
+        
+        socket.on('error', function(data) {
+            showAlert(data.message, 'error');
+            resetUI();
+        });
+        
+        // UI Reset
+        function resetUI() {
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fas fa-rocket"></i> Kurs erstellen';
+            
+            // Quality Dashboard zurücksetzen
+            qualityHistory = [];
+            qualitySteps.innerHTML = '';
+            qualityDashboard.style.display = 'none';
+            qualityRecommendations.style.display = 'none';
+        }
+        
+        // Initial Load
+        document.addEventListener('DOMContentLoaded', function() {
+            topicInput.focus();
+        });
+    </script>
+</body>
+</html> 

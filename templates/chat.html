@@ -1,0 +1,943 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - KI-Kursstudio{% endblock %}
+
+{% block head %}
+<!-- Socket.IO Client -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+// Globale Variablen aus Flask
+const SESSION_ID = "{{ session_id }}";
+const INITIAL_PROJECT_ID = "{{ project_id }}";
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+{% endblock %}
+
+{% block content %}
+    <!-- Main Content Area -->
+    <div class="row g-3">
+        <!-- Left Column: Main Chat -->
+        <div class="col-lg-6">
+            <div class="card h-100 chat-card">
+                <div class="card-header border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-comments me-2 text-primary"></i>KI-Kursstudio Chat
+                        </h5>
+                        <div class="chat-controls">
+                            <button class="btn btn-outline-secondary btn-sm" id="clearChat" title="Chat löschen">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="mt-2" id="progressContainer" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted" id="progressText">Wird geladen...</small>
+                            <small class="text-muted" id="progressPercent">0%</small>
+                        </div>
+                        <div class="progress" style="height: 4px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body d-flex flex-column p-0" style="height: 70vh;">
+                    <!-- Chat Messages -->
+                    <div class="flex-grow-1 overflow-auto p-3" id="chatMessages">
+                        <div class="chat-welcome text-center text-muted py-5">
+                            <i class="fas fa-robot fa-3x mb-3"></i>
+                            <h6>Willkommen im KI-Kursstudio!</h6>
+                            <p class="small">Beschreiben Sie Ihre Kursidee und lassen Sie das Multi-Agenten-System für Sie arbeiten.</p>
+                            <div class="quick-prompts mt-3">
+                                <button class="btn btn-outline-primary btn-sm me-2 quick-prompt" data-prompt="Erstelle einen Kurs über Python Grundlagen">
+                                    Python Grundlagen
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm me-2 quick-prompt" data-prompt="Ich brauche einen Kurs über digitales Marketing">
+                                    Digitales Marketing
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm quick-prompt" data-prompt="Entwickle einen Kurs über Zeitmanagement">
+                                    Zeitmanagement
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Input Area -->
+                    <div class="border-top p-3">
+                        <form id="chatForm" class="d-flex gap-2">
+                            <div class="flex-grow-1">
+                                <div class="input-group">
+                                    <textarea class="form-control" id="messageInput" 
+                                             placeholder="Beschreiben Sie Ihre Kursidee..." 
+                                             rows="2" style="resize: none;"></textarea>
+                                    <button class="btn btn-outline-secondary" type="button" id="fileUploadBtn">
+                                        <i class="fas fa-paperclip"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="sendBtn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </form>
+                        
+                        <!-- File Upload (Hidden) -->
+                        <input type="file" id="fileInput" accept=".pdf,.txt,.docx" multiple style="display: none;">
+                        
+                        <!-- Typing Indicator -->
+                        <div id="typingIndicator" class="text-muted small mt-2" style="display: none;">
+                            <i class="fas fa-circle-notch fa-spin me-1"></i>KI-Agent arbeitet...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Results and Workflow -->
+        <div class="col-lg-6">
+            <!-- Final Results Window (Top Right) -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>Finales Ergebnis
+                        <span class="badge bg-secondary ms-2" id="contentStage">Bereit</span>
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="finalResultContainer" class="text-center text-muted">
+                        <i class="fas fa-hourglass-half fa-2x mb-2"></i>
+                        <p class="small">Warten auf Kurs-Generierung...</p>
+                    </div>
+                    <div id="finalResultContent" style="display: none;">
+                        <div class="result-content" style="max-height: 300px; overflow-y: auto; padding: 15px; background: #f8f9fa; border-radius: 8px; font-family: 'Georgia', serif; font-size: 13px; line-height: 1.6; white-space: pre-wrap;">
+                            <div id="finalResultText"></div>
+                        </div>
+                        <div class="mt-3 d-flex gap-2">
+                            <button class="btn btn-outline-success btn-sm flex-fill" id="downloadPdf" disabled>
+                                <i class="fas fa-file-pdf me-1"></i>PDF herunterladen
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="copyContent" disabled>
+                                <i class="fas fa-copy me-1"></i>Kopieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agenten-Workflow Monitor (Middle Right) -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>Agenten-Workflow
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="workflow-container" style="max-height: 200px; overflow-y: auto;">
+                        <ul class="list-group small" id="agentWorkflow"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Project Info (Bottom Right) -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-folder me-2"></i>Aktuelles Projekt
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="projectInfo">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-plus-circle fa-2x mb-2"></i>
+                            <p class="small">Automatisches Demo-Projekt</p>
+                            <button class="btn btn-outline-primary btn-sm" onclick="createDemoProject()">
+                                Demo-Projekt erstellen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- File Upload Area (Bottom Right) -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-file-upload me-2"></i>Wissensquellen
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="upload-area text-center p-3 border border-dashed rounded" id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+                        <p class="small text-muted mb-2" id="uploadText">Dateien hier ablegen oder klicken</p>
+                        <small class="text-muted">PDF, TXT, DOCX (max. 16MB)</small>
+                    </div>
+                    
+                    <!-- Uploaded Files List -->
+                    <div id="uploadedFiles" class="mt-3" style="display: none;">
+                        <h6 class="small text-muted">Hochgeladene Dateien:</h6>
+                        <ul class="list-group list-group-flush small" id="filesList"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Project Selection Modal -->
+<div class="modal fade" id="selectProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-folder me-2"></i>Projekt auswählen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="projectsList">
+                    <!-- Dynamisch geladen via JavaScript -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Lade...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chat-container {
+        min-height: 600px;
+        max-height: 80vh;
+    }
+    
+    #chatMessages {
+        background: #f8f9fa;
+        padding: 1rem;
+    }
+    
+    .message {
+        margin-bottom: 1rem;
+        animation: slideIn 0.3s ease;
+    }
+    
+    .message-user {
+        text-align: right;
+    }
+    
+    .message-assistant {
+        text-align: left;
+    }
+    
+    .message-bubble {
+        display: inline-block;
+        max-width: 70%;
+        padding: 0.75rem 1rem;
+        border-radius: 15px;
+        word-wrap: break-word;
+    }
+    
+    .message-user .message-bubble {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        border-bottom-right-radius: 5px;
+    }
+    
+    .message-assistant .message-bubble {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-bottom-left-radius: 5px;
+    }
+    
+    .message-meta {
+        font-size: 0.75rem;
+        color: #6b7280;
+        margin-top: 0.25rem;
+    }
+    
+    .message-user .message-meta {
+        text-align: right;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .upload-area {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-area:hover {
+        border-color: var(--primary-color);
+        background-color: rgba(59, 130, 246, 0.05);
+    }
+    
+    .upload-area.dragover {
+        border-color: var(--primary-color);
+        background-color: rgba(59, 130, 246, 0.1);
+    }
+    
+    .file-item {
+        padding: 0.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 5px;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+    
+    #messageInput:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+    }
+    
+    /* Responsive */
+    @media (max-width: 991px) {
+        .chat-container {
+            min-height: 500px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Socket.IO Connection
+const socket = io();
+let currentProjectId = INITIAL_PROJECT_ID && INITIAL_PROJECT_ID !== 'None' ? INITIAL_PROJECT_ID : null;
+let isConnected = false;
+
+// DOM Elements
+const chatMessages = document.getElementById('chatMessages');
+const messageInput = document.getElementById('messageInput');
+const chatForm = document.getElementById('chatForm');
+const sendBtn = document.getElementById('sendBtn');
+const typingIndicator = document.getElementById('typingIndicator');
+const connectionStatus = document.getElementById('connectionStatus');
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const agentWorkflow = document.getElementById('agentWorkflow');
+const downloadBtn = document.getElementById('downloadPdf');
+let finalResult = "";
+
+// Socket Events
+socket.on('connect', function() {
+    isConnected = true;
+    connectionStatus.textContent = 'Verbunden';
+    connectionStatus.className = 'text-light';
+    console.log('Connected to server');
+});
+
+socket.on('disconnect', function() {
+    isConnected = false;
+    connectionStatus.textContent = 'Verbindung unterbrochen';
+    connectionStatus.className = 'text-warning';
+});
+
+socket.on('status', function(data) {
+    console.log('Status:', data.msg);
+});
+
+socket.on('new_message', function(data) {
+    displayMessage(data);
+    hideTypingIndicator();
+    
+    if(data.type === 'assistant'){
+        const plain = decodeContent(data.message);
+        
+        // Display in workflow ONLY (not in final results anymore)
+        const li = document.createElement('li');
+        li.className = 'list-group-item';
+        li.innerHTML = `<pre style="white-space:pre-wrap">${plain}</pre>`;
+        agentWorkflow.appendChild(li);
+        
+        // Do NOT update final result here anymore - that's handled by course_content_update
+    }
+});
+
+// Progress bar management
+function showProgress(text = "Wird geladen...", percent = 0) {
+    const progressContainer = document.getElementById('progressContainer');
+    const progressText = document.getElementById('progressText');
+    const progressPercent = document.getElementById('progressPercent');
+    const progressBar = document.getElementById('progressBar');
+    
+    progressContainer.style.display = 'block';
+    progressText.textContent = text;
+    progressPercent.textContent = percent + '%';
+    progressBar.style.width = percent + '%';
+    
+    if (percent >= 100) {
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+        }, 2000);
+    }
+}
+
+function hideProgress() {
+    const progressContainer = document.getElementById('progressContainer');
+    progressContainer.style.display = 'none';
+}
+
+// Enhanced workflow update with full content display
+socket.on('workflow_update', function(data) {
+    const agentWorkflow = document.getElementById('agentWorkflow');
+    const li = document.createElement('li');
+    li.className = 'list-group-item p-2';
+    
+    const timestamp = data.timestamp || new Date().toLocaleTimeString().slice(0,-3);
+    
+    switch(data.type) {
+        case 'tool_call_start':
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="flex-grow: 1;">
+                        <i class="fas fa-tools text-primary me-2"></i>
+                        <strong>Tool-Call:</strong> ${data.function}
+                        <div class="text-muted small mt-1">
+                            <strong>Parameter:</strong><br>
+                            ${data.arguments ? Object.keys(data.arguments).map(key => 
+                                `<strong>${key}:</strong> ${data.arguments[key]}`
+                            ).join('<br>') : 'Keine Parameter'}
+                        </div>
+                    </div>
+                    <small class="text-muted ms-2">${timestamp}</small>
+                </div>
+            `;
+            li.style.borderLeft = '3px solid #0d6efd';
+            break;
+            
+        case 'agent_start':
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <i class="fas fa-robot text-success me-2"></i>
+                        <strong>${data.agent}</strong> startet
+                        <div class="text-muted small">Rolle: ${data.role} | Model: ${data.model}</div>
+                    </div>
+                    <small class="text-muted">${timestamp}</small>
+                </div>
+            `;
+            li.style.borderLeft = '3px solid #198754';
+            break;
+            
+        case 'agent_prompt':
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="flex-grow: 1;">
+                        <i class="fas fa-comment-dots text-info me-2"></i>
+                        <strong>${data.agent}</strong> erhält Prompt
+                        <div class="text-muted small mt-2 p-2 bg-light rounded" style="white-space: pre-wrap; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto;">
+                            ${data.prompt}
+                        </div>
+                    </div>
+                    <small class="text-muted ms-2">${timestamp}</small>
+                </div>
+            `;
+            li.style.borderLeft = '3px solid #0dcaf0';
+            break;
+            
+        case 'agent_response':
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="flex-grow: 1;">
+                        <i class="fas fa-reply text-warning me-2"></i>
+                        <strong>${data.agent}</strong> antwortet
+                        <div class="text-muted small mt-2 p-2 bg-light rounded" style="white-space: pre-wrap; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto;">
+                            ${data.response}
+                        </div>
+                    </div>
+                    <small class="text-muted ms-2">${timestamp}</small>
+                </div>
+            `;
+            li.style.borderLeft = '3px solid #ffc107';
+            break;
+            
+        case 'tool_call_result':
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="flex-grow: 1;">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong>Tool-Result:</strong> ${data.function}
+                        <div class="text-muted small mt-1">
+                            ${data.result}
+                        </div>
+                    </div>
+                    <small class="text-muted ms-2">${timestamp}</small>
+                </div>
+            `;
+            li.style.borderLeft = '3px solid #198754';
+            break;
+            
+        case 'tool_call_error':
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="flex-grow: 1;">
+                        <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                        <strong>Tool-Error:</strong> ${data.function}
+                        <div class="text-danger small mt-1">
+                            ${data.error}
+                        </div>
+                    </div>
+                    <small class="text-muted ms-2">${timestamp}</small>
+                </div>
+            `;
+            li.style.borderLeft = '3px solid #dc3545';
+            break;
+    }
+    
+    agentWorkflow.appendChild(li);
+    
+    // Auto-scroll to bottom
+    const workflowContainer = li.closest('.workflow-container');
+    if (workflowContainer) {
+        workflowContainer.scrollTop = workflowContainer.scrollHeight;
+    }
+});
+
+// Listen for course content updates (separate from supervisor messages)
+socket.on('course_content_update', function(data) {
+    const finalResultContainer = document.getElementById('finalResultContainer');
+    const finalResultContent = document.getElementById('finalResultContent');
+    const finalResultText = document.getElementById('finalResultText');
+    const contentStage = document.getElementById('contentStage');
+    const downloadBtn = document.getElementById('downloadPdf');
+    const copyBtn = document.getElementById('copyContent');
+    
+    // Update stage indicator
+    contentStage.textContent = data.stage;
+    contentStage.className = 'badge bg-primary ms-2';
+    
+    // Show the content
+    finalResultContainer.style.display = 'none';
+    finalResultContent.style.display = 'block';
+    
+    // Display the actual course content
+    finalResultText.textContent = data.content;
+    
+    // Store for PDF generation and copying
+    finalResult = data.content;
+    
+    // Enable buttons
+    downloadBtn.disabled = false;
+    copyBtn.disabled = false;
+    
+    // Update stage color based on completion
+    if (data.stage.includes('abgeschlossen')) {
+        contentStage.className = 'badge bg-success ms-2';
+    }
+});
+
+// Update status handling to use progress bar instead
+socket.on('status_update', function(data) {
+    console.log('Status:', data.status);
+    
+    // Determine progress based on status
+    if (data.status.includes('Assistants aus Datenbank geladen')) {
+        showProgress('System initialisiert', 10);
+    } else if (data.status.includes('Supervisor Assistant geladen')) {
+        showProgress('Supervisor bereit', 20);
+    } else if (data.status.includes('Chat-Thread erstellt')) {
+        showProgress('Verbindung hergestellt', 30);
+    } else if (data.status.includes('create_content aus')) {
+        showProgress('Content Creator arbeitet...', 40);
+    } else if (data.status.includes('create_content abgeschlossen')) {
+        showProgress('Grundinhalt erstellt', 55);
+    } else if (data.status.includes('optimize_didactics aus')) {
+        showProgress('Didactic Expert optimiert...', 65);
+    } else if (data.status.includes('optimize_didactics abgeschlossen')) {
+        showProgress('Didaktisch optimiert', 80);
+    } else if (data.status.includes('critically_review aus')) {
+        showProgress('Quality Checker prüft...', 85);
+    } else if (data.status.includes('critically_review abgeschlossen')) {
+        showProgress('Qualitätsprüfung abgeschlossen', 95);
+    } else if (data.status.includes('Tool-Ausführung abgeschlossen')) {
+        showProgress('Finalisiere Ergebnis...', 100);
+    } else if (data.status.includes('Verarbeitung läuft')) {
+        // Don't show iteration details in main chat
+    } else {
+        // For other status messages, show them briefly
+        showProgress(data.status, -1); // -1 means don't change progress
+    }
+});
+
+socket.on('error_message', function(data) {
+    console.error('Error:', data.error);
+    
+    // Hide progress bar on error
+    hideProgress();
+    
+    // Show error in chat
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'message-error alert alert-danger mx-3 my-2';
+    errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${data.error}`;
+    chatMessages.appendChild(errorDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+// Chat Functions
+function displayMessage(messageData) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message message-${messageData.type}`;
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    
+    // Decode Base64 content for proper display
+    const decodedMessage = decodeContent(messageData.message);
+    bubble.style.whiteSpace = 'pre-wrap'; // Preserve formatting
+    bubble.textContent = decodedMessage;
+    
+    const meta = document.createElement('div');
+    meta.className = 'message-meta';
+    meta.textContent = `${messageData.sender} • ${messageData.timestamp}`;
+    
+    messageDiv.appendChild(bubble);
+    messageDiv.appendChild(meta);
+    
+    // Remove welcome message if it exists
+    const welcomeMsg = chatMessages.querySelector('.chat-welcome');
+    if (welcomeMsg) {
+        welcomeMsg.remove();
+    }
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function sendMessage(message) {
+    if (!message.trim() || !isConnected) return;
+    
+    // Clear previous workflow and results
+    const agentWorkflow = document.getElementById('agentWorkflow');
+    agentWorkflow.innerHTML = '';
+    
+    const finalResultContainer = document.getElementById('finalResultContainer');
+    const finalResultContent = document.getElementById('finalResultContent');
+    finalResultContainer.style.display = 'block';
+    finalResultContent.style.display = 'none';
+    
+    // Start progress
+    showProgress('Workflow wird gestartet...', 5);
+    
+    // Disable input while sending
+    sendBtn.disabled = true;
+    messageInput.disabled = true;
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    // Send message via Socket.IO
+    socket.emit('user_message', {
+        message: message,
+        project_id: currentProjectId || 'default',
+        session_id: SESSION_ID
+    });
+    
+    // Re-enable input
+    setTimeout(() => {
+        sendBtn.disabled = false;
+        messageInput.disabled = false;
+        messageInput.focus();
+    }, 500);
+}
+
+function showTypingIndicator() {
+    typingIndicator.style.display = 'block';
+}
+
+function hideTypingIndicator() {
+    typingIndicator.style.display = 'none';
+}
+
+function decodeContent(text){
+   if(text.startsWith('BASE64:')){
+      try{return atob(text.slice(7));}catch(e){return text;}
+   }
+   return text;
+}
+
+// Event Listeners
+chatForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const message = messageInput.value.trim();
+    if (message) {
+        sendMessage(message);
+        messageInput.value = '';
+    }
+});
+
+// Quick prompt buttons
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.quick-prompt')) {
+        const prompt = e.target.closest('.quick-prompt').dataset.prompt;
+        messageInput.value = prompt;
+        sendMessage(prompt);
+        messageInput.value = '';
+    }
+});
+
+// Auto-resize textarea
+messageInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// Enter to send (Shift+Enter for new line)
+messageInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.dispatchEvent(new Event('submit'));
+    }
+});
+
+// File Upload
+uploadArea.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', handleFileSelect);
+
+// Drag & Drop
+uploadArea.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.classList.add('dragover');
+});
+
+uploadArea.addEventListener('dragleave', function() {
+    this.classList.remove('dragover');
+});
+
+uploadArea.addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    handleFiles(files);
+});
+
+function handleFileSelect(e) {
+    handleFiles(e.target.files);
+}
+
+function handleFiles(files) {
+    for (let file of files) {
+        if (file.size > 16 * 1024 * 1024) {
+            alert(`Datei "${file.name}" ist zu groß (max. 16MB)`);
+            continue;
+        }
+        
+        // Upload file to server
+        uploadFileToServer(file);
+    }
+}
+
+function uploadFileToServer(file) {
+    // Validierung: Projekt muss ausgewählt sein (numeric or demo format)
+    if (!currentProjectId || !(String(currentProjectId).match(/^\d+$/) || String(currentProjectId).match(/^demo_\d+$/))) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-warning mx-3 my-2';
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Bitte zuerst ein Projekt auswählen, bevor Sie Dateien hochladen.`;
+        chatMessages.appendChild(errorDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project_id', currentProjectId);
+    
+    // Show upload progress
+    const uploadStatus = document.createElement('div');
+    uploadStatus.className = 'message-status text-center text-info small my-2';
+    uploadStatus.innerHTML = `<i class="fas fa-upload me-1"></i>Lade "${file.name}" hoch...`;
+    chatMessages.appendChild(uploadStatus);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    fetch('/upload-file', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        uploadStatus.remove();
+        
+        if (data.success) {
+            // Show success message in chat
+            const successDiv = document.createElement('div');
+            successDiv.className = 'message-status text-center text-success small my-2';
+            successDiv.innerHTML = `<i class="fas fa-check-circle me-1"></i>Datei "${data.details.filename}" erfolgreich verarbeitet (${data.details.chunks_count} Segmente)`;
+            chatMessages.appendChild(successDiv);
+            
+            // Update uploaded files display
+            displayUploadedFile({
+                name: data.details.filename,
+                size: file.size,
+                processed: true,
+                chunks: data.details.chunks_count
+            });
+            
+            // Show preview if available
+            if (data.details.preview) {
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'alert alert-info mx-3 my-2 small';
+                previewDiv.innerHTML = `<strong>Vorschau:</strong><br>${data.details.preview}`;
+                chatMessages.appendChild(previewDiv);
+            }
+        } else {
+            // Show error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger mx-3 my-2';
+            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Upload-Fehler: ${data.error}`;
+            chatMessages.appendChild(errorDiv);
+        }
+        
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    })
+    .catch(error => {
+        console.error('Upload error:', error);
+        uploadStatus.remove();
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger mx-3 my-2';
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Upload fehlgeschlagen: ${error}`;
+        chatMessages.appendChild(errorDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+}
+
+function displayUploadedFile(file) {
+    const uploadedFiles = document.getElementById('uploadedFiles');
+    const filesList = document.getElementById('filesList');
+    
+    const fileDiv = document.createElement('li'); // Changed to li for list-group-flush
+    fileDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
+    
+    const statusIcon = file.processed ? 
+        '<i class="fas fa-check-circle text-success me-1"></i>' : 
+        '<i class="fas fa-clock text-warning me-1"></i>';
+    
+    const chunksInfo = file.chunks ? ` (${file.chunks} Segmente)` : '';
+    
+    fileDiv.innerHTML = `
+        <span>
+            <i class="fas fa-file me-2"></i>${file.name}
+            ${statusIcon}${chunksInfo}
+        </span>
+        <small class="text-muted">${(file.size / 1024).toFixed(1)} KB</small>
+    `;
+    
+    filesList.appendChild(fileDiv);
+    uploadedFiles.style.display = 'block';
+}
+
+// Clear Chat
+document.getElementById('clearChat').addEventListener('click', function() {
+    if (confirm('Chat-Verlauf wirklich löschen?')) {
+        chatMessages.innerHTML = `
+            <div class="chat-welcome text-center py-5">
+                <i class="fas fa-robot fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Chat wurde geleert</h5>
+                <p class="text-muted">Starten Sie eine neue Konversation über Ihre Kursidee.</p>
+            </div>
+        `;
+    }
+});
+
+// Update Upload UI based on project selection
+function updateUploadUI() {
+    const uploadArea = document.getElementById('uploadArea');
+    const uploadText = document.getElementById('uploadText');
+    
+    if (!currentProjectId || !(String(currentProjectId).match(/^\d+$/) || String(currentProjectId).match(/^demo_\d+$/))) {
+        uploadArea.classList.add('disabled');
+        uploadArea.style.opacity = '0.5';
+        uploadArea.style.pointerEvents = 'none';
+        uploadText.innerHTML = '<i class="fas fa-info-circle me-1"></i>Projekt auswählen um Dateien hochzuladen';
+    } else {
+        uploadArea.classList.remove('disabled');
+        uploadArea.style.opacity = '1';
+        uploadArea.style.pointerEvents = 'auto';
+        uploadText.textContent = 'Dateien hier ablegen oder klicken';
+    }
+}
+
+function createDemoProject() {
+    // Create a demo project automatically
+    currentProjectId = 'demo_' + Date.now();
+    
+    // Update project info display
+    const projectInfo = document.getElementById('projectInfo');
+    projectInfo.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-folder-open text-primary me-2"></i>
+            <div class="flex-grow-1">
+                <h6 class="mb-0">Demo-Projekt</h6>
+                <small class="text-muted">ID: ${currentProjectId}</small>
+            </div>
+            <span class="badge bg-success">Aktiv</span>
+        </div>
+    `;
+    
+    // Update upload UI
+    updateUploadUI();
+    
+    console.log('Demo project created:', currentProjectId);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    messageInput.focus();
+    
+    // Get project_id from URL or initial context
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectId = urlParams.get('project_id') || INITIAL_PROJECT_ID;
+    
+    // Validate and set project ID
+    if (projectId && projectId !== 'None' && String(projectId).match(/^\d+$/)) {
+        currentProjectId = projectId;
+    } else {
+        currentProjectId = null;
+    }
+    
+    // Update UI based on project selection
+    updateUploadUI();
+    
+    socket.emit('join_project', {
+        project_id: currentProjectId || 'default',
+        session_id: SESSION_ID
+    });
+        // TODO: Load project info
+    
+});
+
+// Add copy functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const copyBtn = document.getElementById('copyContent');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            if (finalResult) {
+                navigator.clipboard.writeText(finalResult).then(function() {
+                    // Show feedback
+                    const originalText = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Kopiert!';
+                    copyBtn.classList.remove('btn-outline-secondary');
+                    copyBtn.classList.add('btn-success');
+                    
+                    setTimeout(function() {
+                        copyBtn.innerHTML = originalText;
+                        copyBtn.classList.remove('btn-success');
+                        copyBtn.classList.add('btn-outline-secondary');
+                    }, 2000);
+                });
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 

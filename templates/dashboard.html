@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - KI-Kursstudio{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Welcome Section -->
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    Dashboard - Willkommen, {{ user.username }}!
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <p class="mb-2">
+                            <i class="fas fa-calendar me-2"></i>
+                            <strong>Letzter Login:</strong> 
+                            {% if user.last_login %}{% if user.last_login.strftime is defined %}{{ user.last_login.strftime('%d.%m.%Y %H:%M') }}{% else %}{{ user.last_login[:16].replace('T', ' ') }}{% endif %}{% else %}Erstanmeldung{% endif %}
+                        </p>
+                        <p class="mb-0">
+                            <i class="fas fa-user-tag me-2"></i>
+                            <strong>Rolle:</strong> 
+                            <span class="role-badge {{ 'admin' if user.role == 'admin' else 'user' }}">
+                                {{ 'Administrator' if user.role == 'admin' else 'Benutzer' }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+                            <i class="fas fa-plus me-2"></i>Neues Projekt
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Admin-spezifischer Bereich -->
+{% if user.role == 'admin' %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cogs me-2"></i>Administrator-Funktionen
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-robot fa-2x text-primary mb-2"></i>
+                                <h6>Agenten-Verwaltung</h6>
+                                <small class="text-muted">KI-Agenten konfigurieren</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-microchip fa-2x text-success mb-2"></i>
+                                <h6>LLM-Verwaltung</h6>
+                                <small class="text-muted">API-Provider verwalten</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-users fa-2x text-warning mb-2"></i>
+                                <h6>Benutzer-Verwaltung</h6>
+                                <small class="text-muted">User und Rollen verwalten</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                                <h6>Statistiken</h6>
+                                <small class="text-muted">System-Metriken anzeigen</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Projekte-Bereich -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-folder me-2"></i>Meine Projekte
+                </h5>
+                <span class="badge bg-primary">{{ projects|length }} Projekt(e)</span>
+            </div>
+            <div class="card-body">
+                {% if projects %}
+                    <div class="row g-3">
+                        {% for project in projects %}
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card dashboard-card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0">{{ project.title }}</h6>
+                                        <span class="status-badge bg-success text-white">
+                                            {{ project.status }}
+                                        </span>
+                                    </div>
+                                    
+                                    {% if project.description %}
+                                    <p class="card-text text-muted small">
+                                        {{ project.description[:100] }}{% if project.description|length > 100 %}...{% endif %}
+                                    </p>
+                                    {% endif %}
+                                    
+                                    <div class="small text-muted mb-3">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        Erstellt: {% if project.created_at.strftime is defined %}{{ project.created_at.strftime('%d.%m.%Y') }}{% else %}{{ project.created_at[:10] }}{% endif %}
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2">
+                                        <a href="{{ url_for('chat', project_id=project.id) }}" class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-comments me-1"></i>Chat öffnen
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Noch keine Projekte</h5>
+                        <p class="text-muted">Erstellen Sie Ihr erstes KI-Kursprojekt!</p>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+                            <i class="fas fa-plus me-2"></i>Erstes Projekt erstellen
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions für User -->
+{% if user.role != 'admin' %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-rocket me-2"></i>Schnellaktionen
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-lightbulb fa-2x text-warning mb-2"></i>
+                                <h6>Kursidee entwickeln</h6>
+                                <small class="text-muted">Mit KI-Unterstützung</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-upload fa-2x text-info mb-2"></i>
+                                <h6>Wissen hochladen</h6>
+                                <small class="text-muted">PDFs & Dokumente</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card dashboard-card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-magic fa-2x text-purple mb-2"></i>
+                                <h6>Automatischer Modus</h6>
+                                <small class="text-muted">KI erstellt eigenständig</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal für neues Projekt -->
+<div class="modal fade" id="newProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>Neues Projekt erstellen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('new_project') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="projectTitle" class="form-label">
+                            <i class="fas fa-heading me-2"></i>Projekt-Titel
+                        </label>
+                        <input type="text" class="form-control" id="projectTitle" name="title" 
+                               placeholder="z.B. Marketing für Anfänger" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="projectDescription" class="form-label">
+                            <i class="fas fa-align-left me-2"></i>Beschreibung (optional)
+                        </label>
+                        <textarea class="form-control" id="projectDescription" name="description" rows="3"
+                                  placeholder="Kurze Beschreibung des geplanten Kurses..."></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Nach der Erstellung können Sie direkt im Chat mit der KI-gestützten Kursentwicklung beginnen.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-rocket me-2"></i>Projekt erstellen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-purple {
+        color: #8b5cf6 !important;
+    }
+    
+    .dashboard-card {
+        border: 1px solid #e5e7eb;
+        transition: all 0.3s ease;
+    }
+    
+    .dashboard-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 5px 15px rgba(59, 130, 246, 0.2);
+    }
+</style>
+{% endblock %} 

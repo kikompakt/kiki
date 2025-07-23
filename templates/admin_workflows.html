@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow-Verwaltung - KI Kursstudio Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .workflow-card {
+            transition: all 0.3s ease;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .workflow-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .workflow-type-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .step-item {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        .step-item:hover {
+            background: #e9ecef;
+            border-left-color: #0056b3;
+        }
+        .step-parallel {
+            border-left-color: #28a745;
+        }
+        .step-disabled {
+            opacity: 0.6;
+            border-left-color: #dc3545;
+        }
+        .workflow-designer {
+            min-height: 400px;
+            background: linear-gradient(45deg, #f8f9fa 25%, transparent 25%), 
+                        linear-gradient(-45deg, #f8f9fa 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #f8f9fa 75%), 
+                        linear-gradient(-45deg, transparent 75%, #f8f9fa 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .agent-selector {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        .agent-selector:hover {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        .step-settings {
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .workflow-flow {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+        .flow-step {
+            min-width: 120px;
+            text-align: center;
+            position: relative;
+        }
+        .flow-arrow {
+            color: #6c757d;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-graduation-cap me-2"></i>KI Kursstudio Admin
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('admin_panel') }}">
+                    <i class="fas fa-arrow-left me-1"></i>Zurück zum Admin-Panel
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Header mit Statistiken -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-project-diagram text-info me-2"></i>
+                    Workflow-Verwaltung
+                </h1>
+                <p class="text-muted">Konfigurieren Sie Agent-Abläufe und Orchestrierung</p>
+            </div>
+            <div class="col-md-4">
+                <div class="card stats-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">
+                            <i class="fas fa-chart-line me-2"></i>Workflow-Statistiken
+                        </h5>
+                        <p class="card-text mb-0">
+                            <span id="totalWorkflows">{{ workflows|length }}</span> Workflows,
+                            <span id="activeWorkflows">{{ workflows|selectattr('is_active')|list|length }}</span> aktiv
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aktionen-Toolbar -->
+        <div class="row mb-4">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-success" onclick="createWorkflow()">
+                            <i class="fas fa-plus me-2"></i>Neuer Workflow
+                        </button>
+                        <button type="button" class="btn btn-info" onclick="showWorkflowTemplates()">
+                            <i class="fas fa-copy me-2"></i>Aus Template
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" onclick="importWorkflow()">
+                            <i class="fas fa-upload me-2"></i>Importieren
+                        </button>
+                        <a href="{{ url_for('admin_workflows_help') }}" class="btn btn-outline-info">
+                            <i class="fas fa-question-circle me-2"></i>Hilfe & Anleitung
+                        </a>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showInactive" onchange="toggleInactiveWorkflows()">
+                            <label class="form-check-label" for="showInactive">
+                                Inaktive anzeigen
+                            </label>
+                        </div>
+                        <select class="form-select" style="width: auto;" onchange="filterWorkflows(this.value)">
+                            <option value="">Alle Typen</option>
+                            <option value="sequential">Sequential</option>
+                            <option value="parallel">Parallel</option>
+                            <option value="conditional">Conditional</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow-Liste -->
+        <div class="row" id="workflowGrid">
+            {% for workflow in workflows %}
+            <div class="col-lg-4 col-md-6 mb-4 workflow-item" data-active="{{ 'True' if workflow.is_active else 'False' }}" data-type="{{ workflow.workflow_type }}">
+                <div class="card workflow-card h-100">
+                    <!-- Workflow-Type Badge -->
+                    <span class="badge {% if workflow.workflow_type == 'sequential' %}bg-primary{% elif workflow.workflow_type == 'parallel' %}bg-success{% else %}bg-warning{% endif %} workflow-type-badge">
+                        {{ workflow.workflow_type|title }}
+                    </span>
+                    
+                    {% if workflow.is_default %}
+                    <span class="badge bg-warning position-absolute" style="top: 40px; right: 10px;">
+                        <i class="fas fa-star me-1"></i>Standard
+                    </span>
+                    {% endif %}
+                    
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-{% if workflow.is_active %}play-circle text-success{% else %}pause-circle text-danger{% endif %} me-2"></i>
+                                {{ workflow.name }}
+                            </h5>
+                        </div>
+                        
+                        <p class="card-text text-muted small">{{ workflow.description or 'Keine Beschreibung verfügbar' }}</p>
+                        
+                        <!-- Workflow-Flow Vorschau -->
+                        <div class="workflow-flow mb-3" id="flow-{{ workflow.id }}">
+                            <div class="d-flex align-items-center">
+                                <small class="text-muted">{{ workflow.step_count }} Steps</small>
+                                <button class="btn btn-sm btn-outline-secondary ms-2" data-action="preview" data-workflow-id="{{ workflow.id }}">
+                                    <i class="fas fa-eye me-1"></i>Vorschau
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Workflow-Metriken -->
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <small class="text-muted d-block">Steps</small>
+                                <strong>{{ workflow.step_count }}</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block">Typ</small>
+                                <strong>{{ workflow.workflow_type[:3]|title }}</strong>
+                            </div>
+                            <div class="col-4">
+                                <small class="text-muted d-block">Status</small>
+                                <strong class="{% if workflow.is_active %}text-success{% else %}text-danger{% endif %}">
+                                    {% if workflow.is_active %}Aktiv{% else %}Inaktiv{% endif %}
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex justify-content-between">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-workflow-id="{{ workflow.id }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-workflow-id="{{ workflow.id }}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-{% if workflow.is_active %}warning{% else %}success{% endif %}" data-action="toggle" data-workflow-id="{{ workflow.id }}">
+                                    <i class="fas fa-{% if workflow.is_active %}pause{% else %}play{% endif %}"></i>
+                                </button>
+                            </div>
+                            {% if not workflow.is_default %}
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" data-workflow-id="{{ workflow.id }}" data-workflow-name="{{ workflow.name }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Create/Edit Workflow Modal -->
+    <div class="modal fade" id="workflowModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-project-diagram me-2"></i>
+                        <span id="modalTitle">Neuer Workflow</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="workflowForm">
+                        <input type="hidden" id="workflowId" name="workflowId">
+                        
+                        <!-- Grundeinstellungen -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">Workflow-Name</label>
+                                <input type="text" class="form-control" id="workflowName" name="name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Workflow-Typ</label>
+                                <select class="form-select" id="workflowType" name="workflow_type">
+                                    <option value="sequential">Sequential (Schritt für Schritt)</option>
+                                    <option value="parallel">Parallel (Gleichzeitig)</option>
+                                    <option value="conditional">Conditional (Bedingt)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <label class="form-label">Beschreibung</label>
+                                <textarea class="form-control" id="workflowDescription" name="description" rows="2" placeholder="Beschreibung des Workflows"></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Einstellungen</label>
+                                <div class="d-flex flex-column gap-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="isActive" name="is_active" checked>
+                                        <label class="form-check-label" for="isActive">Aktiv</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="isDefault" name="is_default">
+                                        <label class="form-check-label" for="isDefault">Als Standard setzen</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Workflow-Steps -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-list-ol me-2"></i>Workflow-Steps
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-success" onclick="addWorkflowStep()">
+                                    <i class="fas fa-plus me-1"></i>Step hinzufügen
+                                </button>
+                            </div>
+                            
+                            <!-- Visual Workflow Designer -->
+                            <div class="workflow-designer p-3 mb-3" id="workflowDesigner">
+                                <div class="text-center text-muted py-5" id="emptyDesigner">
+                                    <i class="fas fa-plus-circle fa-3x mb-3"></i>
+                                    <p>Klicken Sie auf "Step hinzufügen" um zu beginnen</p>
+                                </div>
+                                <div id="stepsList"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-primary" onclick="saveWorkflow()">
+                        <i class="fas fa-save me-2"></i>Speichern
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step Configuration Modal -->
+    <div class="modal fade" id="stepModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cog me-2"></i>Step-Konfiguration
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="stepForm">
+                        <input type="hidden" id="stepIndex" name="stepIndex">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Step-Name</label>
+                                <input type="text" class="form-control" id="stepName" name="step_name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Agent auswählen</label>
+                                <select class="form-select" id="agentRole" name="agent_role" required>
+                                    <option value="">-- Agent wählen --</option>
+                                    {% for agent in agents %}
+                                    <option value="{{ agent.role }}">{{ agent.name }} ({{ agent.role }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Reihenfolge</label>
+                                <input type="number" class="form-control" id="orderIndex" name="order_index" min="1" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Retry-Attempts</label>
+                                <input type="number" class="form-control" id="retryAttempts" name="retry_attempts" value="3" min="1" max="10">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Timeout (Sekunden)</label>
+                                <input type="number" class="form-control" id="timeoutSeconds" name="timeout_seconds" value="180" min="30" max="600">
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Ausführungs-Bedingung</label>
+                                <input type="text" class="form-control" id="executionCondition" name="execution_condition" placeholder="z.B. quality_score < 7.0">
+                                <div class="form-text">JavaScript-ähnliche Bedingung (optional)</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Error-Handling</label>
+                                <select class="form-select" id="errorHandling" name="error_handling">
+                                    <option value="graceful">Graceful (Fortfahren)</option>
+                                    <option value="retry">Retry (Wiederholen)</option>
+                                    <option value="stop">Stop (Workflow beenden)</option>
+                                    <option value="skip">Skip (Überspringen)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Input-Quelle</label>
+                                <select class="form-select" id="inputSource" name="input_source">
+                                    <option value="user_input">User Input</option>
+                                    <option value="previous_step">Vorheriger Step</option>
+                                    <option value="raw_content">Raw Content</option>
+                                    <option value="optimized_content">Optimized Content</option>
+                                    <option value="final_content">Final Content</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Output-Ziel</label>
+                                <select class="form-select" id="outputTarget" name="output_target">
+                                    <option value="raw_content">Raw Content</option>
+                                    <option value="optimized_content">Optimized Content</option>
+                                    <option value="final_content">Final Content</option>
+                                    <option value="approved_content">Approved Content</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isEnabled" name="is_enabled" checked>
+                                    <label class="form-check-label" for="isEnabled">
+                                        Step aktiviert
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isParallel" name="is_parallel">
+                                    <label class="form-check-label" for="isParallel">
+                                        Parallel ausführen (experimentell)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-primary" onclick="saveStep()">
+                        <i class="fas fa-save me-2"></i>Step speichern
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentWorkflowSteps = [];
+        let editingWorkflowId = null;
+
+        // Global Workflow Functions
+        function createWorkflow() {
+            editingWorkflowId = null;
+            currentWorkflowSteps = [];
+            document.getElementById('workflowForm').reset();
+            document.getElementById('modalTitle').textContent = 'Neuer Workflow';
+            document.getElementById('emptyDesigner').style.display = 'block';
+            document.getElementById('stepsList').innerHTML = '';
+            new bootstrap.Modal(document.getElementById('workflowModal')).show();
+        }
+
+        function editWorkflow(workflowId) {
+            editingWorkflowId = workflowId;
+            document.getElementById('modalTitle').textContent = 'Workflow bearbeiten';
+            
+            // Load workflow data
+            fetch(`/api/workflows/${workflowId}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Fill form
+                    document.getElementById('workflowId').value = data.id;
+                    document.getElementById('workflowName').value = data.name;
+                    document.getElementById('workflowDescription').value = data.description || '';
+                    document.getElementById('workflowType').value = data.workflow_type;
+                    document.getElementById('isActive').checked = data.is_active;
+                    document.getElementById('isDefault').checked = data.is_default;
+                    
+                    // Load steps
+                    currentWorkflowSteps = data.steps || [];
+                    renderWorkflowSteps();
+                    
+                    new bootstrap.Modal(document.getElementById('workflowModal')).show();
+                })
+                .catch(error => {
+                    console.error('Error loading workflow:', error);
+                    alert('Fehler beim Laden des Workflows');
+                });
+        }
+
+        function saveWorkflow() {
+            const formData = new FormData(document.getElementById('workflowForm'));
+            const workflowData = Object.fromEntries(formData.entries());
+            
+            // Add steps
+            workflowData.steps = currentWorkflowSteps;
+            
+            // Convert checkboxes
+            workflowData.is_active = document.getElementById('isActive').checked;
+            workflowData.is_default = document.getElementById('isDefault').checked;
+
+            const url = editingWorkflowId ? `/api/workflows/${editingWorkflowId}` : '/api/workflows';
+            const method = editingWorkflowId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(workflowData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Fehler: ' + data.error);
+                } else {
+                    bootstrap.Modal.getInstance(document.getElementById('workflowModal')).hide();
+                    location.reload(); // Reload to show updated workflow
+                }
+            })
+            .catch(error => {
+                console.error('Error saving workflow:', error);
+                alert('Fehler beim Speichern des Workflows');
+            });
+        }
+
+        function deleteWorkflow(workflowId, workflowName) {
+            if (confirm(`Möchten Sie den Workflow "${workflowName}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+                fetch(`/api/workflows/${workflowId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Fehler: ' + data.error);
+                    } else {
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting workflow:', error);
+                    alert('Fehler beim Löschen des Workflows');
+                });
+            }
+        }
+
+        function toggleWorkflow(workflowId) {
+            fetch(`/api/workflows/${workflowId}/toggle`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Fehler: ' + data.error);
+                } else {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling workflow:', error);
+                alert('Fehler beim Ändern des Workflow-Status');
+            });
+        }
+
+        function duplicateWorkflow(workflowId) {
+            // Implementation for duplicating workflow
+            alert('Duplicate-Funktion wird in einem zukünftigen Update verfügbar sein.');
+        }
+
+        // Step Management Functions
+        function addWorkflowStep() {
+            document.getElementById('stepForm').reset();
+            document.getElementById('stepIndex').value = currentWorkflowSteps.length;
+            document.getElementById('orderIndex').value = currentWorkflowSteps.length + 1;
+            new bootstrap.Modal(document.getElementById('stepModal')).show();
+        }
+
+        function editStep(index) {
+            const step = currentWorkflowSteps[index];
+            
+            // Fill form with step data
+            document.getElementById('stepIndex').value = index;
+            document.getElementById('stepName').value = step.step_name;
+            document.getElementById('agentRole').value = step.agent_role;
+            document.getElementById('orderIndex').value = step.order_index;
+            document.getElementById('retryAttempts').value = step.retry_attempts || 3;
+            document.getElementById('timeoutSeconds').value = step.timeout_seconds || 180;
+            document.getElementById('executionCondition').value = step.execution_condition || '';
+            document.getElementById('errorHandling').value = step.error_handling || 'graceful';
+            document.getElementById('inputSource').value = step.input_source || 'user_input';
+            document.getElementById('outputTarget').value = step.output_target || 'raw_content';
+            document.getElementById('isEnabled').checked = step.is_enabled !== false;
+            document.getElementById('isParallel').checked = step.is_parallel || false;
+            
+            new bootstrap.Modal(document.getElementById('stepModal')).show();
+        }
+
+        function saveStep() {
+            const formData = new FormData(document.getElementById('stepForm'));
+            const stepData = Object.fromEntries(formData.entries());
+            
+            // Convert checkboxes and numbers
+            stepData.is_enabled = document.getElementById('isEnabled').checked;
+            stepData.is_parallel = document.getElementById('isParallel').checked;
+            stepData.order_index = parseInt(stepData.order_index);
+            stepData.retry_attempts = parseInt(stepData.retry_attempts);
+            stepData.timeout_seconds = parseInt(stepData.timeout_seconds);
+
+            const stepIndex = parseInt(document.getElementById('stepIndex').value);
+            
+            if (stepIndex < currentWorkflowSteps.length) {
+                // Edit existing step
+                currentWorkflowSteps[stepIndex] = stepData;
+            } else {
+                // Add new step
+                currentWorkflowSteps.push(stepData);
+            }
+
+            renderWorkflowSteps();
+            bootstrap.Modal.getInstance(document.getElementById('stepModal')).hide();
+        }
+
+        function deleteStep(index) {
+            if (confirm('Möchten Sie diesen Step wirklich löschen?')) {
+                currentWorkflowSteps.splice(index, 1);
+                renderWorkflowSteps();
+            }
+        }
+
+        function moveStep(index, direction) {
+            if (direction === 'up' && index > 0) {
+                [currentWorkflowSteps[index], currentWorkflowSteps[index - 1]] = 
+                [currentWorkflowSteps[index - 1], currentWorkflowSteps[index]];
+            } else if (direction === 'down' && index < currentWorkflowSteps.length - 1) {
+                [currentWorkflowSteps[index], currentWorkflowSteps[index + 1]] = 
+                [currentWorkflowSteps[index + 1], currentWorkflowSteps[index]];
+            }
+            
+            // Update order_index for all steps
+            currentWorkflowSteps.forEach((step, idx) => {
+                step.order_index = idx + 1;
+            });
+            
+            renderWorkflowSteps();
+        }
+
+        function renderWorkflowSteps() {
+            const stepsList = document.getElementById('stepsList');
+            const emptyDesigner = document.getElementById('emptyDesigner');
+            
+            if (currentWorkflowSteps.length === 0) {
+                emptyDesigner.style.display = 'block';
+                stepsList.innerHTML = '';
+                return;
+            }
+            
+            emptyDesigner.style.display = 'none';
+            
+            stepsList.innerHTML = currentWorkflowSteps.map((step, index) => `
+                <div class="step-item p-3 mb-2 ${step.is_parallel ? 'step-parallel' : ''} ${!step.is_enabled ? 'step-disabled' : ''}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-primary me-2">${step.order_index}</span>
+                                <strong>${step.step_name}</strong>
+                                <span class="badge bg-secondary ms-2">${step.agent_role}</span>
+                                ${step.is_parallel ? '<span class="badge bg-success ms-1">Parallel</span>' : ''}
+                                ${!step.is_enabled ? '<span class="badge bg-danger ms-1">Deaktiviert</span>' : ''}
+                            </div>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <small class="text-muted">Retry: ${step.retry_attempts || 3}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">Timeout: ${step.timeout_seconds || 180}s</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">Input: ${step.input_source || 'user_input'}</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <small class="text-muted">Output: ${step.output_target || 'raw_content'}</small>
+                                </div>
+                            </div>
+                            ${step.execution_condition ? `<div class="mt-1"><small class="text-info">Bedingung: ${step.execution_condition}</small></div>` : ''}
+                        </div>
+                        <div class="btn-group-vertical">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editStep(${index})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveStep(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>
+                                    <i class="fas fa-arrow-up"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveStep(${index}, 'down')" ${index === currentWorkflowSteps.length - 1 ? 'disabled' : ''}>
+                                    <i class="fas fa-arrow-down"></i>
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteStep(${index})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Filter and Display Functions
+        function toggleInactiveWorkflows() {
+            const showInactive = document.getElementById('showInactive').checked;
+            const workflowItems = document.querySelectorAll('.workflow-item');
+            
+            console.log('Toggle inactive workflows - showInactive:', showInactive);
+            
+            workflowItems.forEach(item => {
+                const isActive = item.dataset.active === 'True';
+                console.log('Item active state:', item.dataset.active, 'isActive:', isActive);
+                
+                // KORREKTE LOGIK: 
+                // Wenn showInactive FALSE (Toggle AUS): Zeige nur AKTIVE Workflows
+                // Wenn showInactive TRUE (Toggle AN): Zeige ALLE Workflows
+                if (showInactive) {
+                    // Zeige alle Workflows (aktive und inaktive)
+                    item.style.display = 'block';
+                } else {
+                    // Zeige nur aktive Workflows
+                    if (isActive) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function filterWorkflows(type) {
+            const workflowItems = document.querySelectorAll('.workflow-item');
+            
+            workflowItems.forEach(item => {
+                const itemType = item.dataset.type;
+                if (!type || itemType === type) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function loadWorkflowPreview(workflowId) {
+            // Implementation for loading workflow preview
+            alert('Workflow-Vorschau wird in einem zukünftigen Update verfügbar sein.');
+        }
+
+        function showWorkflowTemplates() {
+            alert('Workflow-Templates werden in einem zukünftigen Update verfügbar sein.');
+        }
+
+        function importWorkflow() {
+            alert('Workflow-Import wird in einem zukünftigen Update verfügbar sein.');
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hide inactive workflows by default
+            toggleInactiveWorkflows();
+            
+            // Add event listeners for workflow actions
+            document.addEventListener('click', function(e) {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+                
+                const action = button.dataset.action;
+                const workflowId = parseInt(button.dataset.workflowId);
+                const workflowName = button.dataset.workflowName;
+                
+                switch(action) {
+                    case 'edit':
+                        editWorkflow(workflowId);
+                        break;
+                    case 'duplicate':
+                        duplicateWorkflow(workflowId);
+                        break;
+                    case 'toggle':
+                        toggleWorkflow(workflowId);
+                        break;
+                    case 'delete':
+                        deleteWorkflow(workflowId, workflowName);
+                        break;
+                    case 'preview':
+                        loadWorkflowPreview(workflowId);
+                        break;
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
