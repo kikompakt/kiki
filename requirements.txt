@@ -1,41 +1,17 @@
-# Core Dependencies für Intelligentes KI-Kursstudio MVP
-openai>=1.0.0
-python-dotenv>=1.0.0
-
-# Web Framework & Real-time Communication
-Flask>=2.3.0
-Flask-SocketIO>=5.3.0
-Werkzeug>=2.3.0
-
-# RAG-System Dependencies (MVP-004 ACTIVE)
-chromadb>=0.4.15
-sentence-transformers==2.2.2
-PyPDF2>=3.0.1
-python-docx>=0.8.11
-
-# File Processing
-Pillow>=10.0.0
-
-# Quality Assessment (bestehende Komponente)
-# Bereits implementiert in quality_assessment.py
-
-# Development & Testing
-pytest>=7.4.0
-pytest-flask>=1.2.0
-
-# Optional: Enhanced Error Handling
-# sentry-sdk[flask]>=1.32.0
-
-# Production Deployment (optional)
-# gunicorn>=21.2.0
-# eventlet>=0.33.3
-
-# Database (SQLite ist built-in in Python)
-# Für spätere PostgreSQL Migration:
-# psycopg2-binary>=2.9.7
-# Flask-SQLAlchemy>=3.0.5 
-APScheduler==3.10.4 
-huggingface-hub<0.20
-
-# General purpose, pin numpy to avoid v2 issues
-numpy<2.0 
+Flask==2.2.2
+openai
+python-dotenv
+Flask-SocketIO
+apscheduler
+numpy
+requests
+werkzeug
+gunicorn
+psycopg2-binary
+sentence-transformers
+chromadb
+PyPDF2
+python-docx
+beautifulsoup4
+Flask-Login
+SQLAlchemy 
