@@ -15,6 +15,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 from models import db, User, Project, Assistant, Workflow, WorkflowStep, ChatSession, ChatMessage
+import time
+import gc
 
 # Load environment variables
 load_dotenv()
@@ -37,14 +39,28 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 db.init_app(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# Optimized SocketIO for Railway memory limits
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25, 
+                   max_http_buffer_size=1024*1024)  # 1MB limit
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging - optimized for Railway
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:%(name)s:%(message)s',
+    handlers=[logging.StreamHandler()]
+)
 logger = logging.getLogger(__name__)
 
-# Global orchestrator storage
+# Reduce verbose logging for certain modules
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
+# Global orchestrator storage with cleanup
 orchestrators = {}
+
+# Memory management
+MAX_ORCHESTRATORS = 50  # Limit concurrent orchestrators
+ORCHESTRATOR_TIMEOUT = 1800  # 30 minutes timeout
 
 # Database initialization and default data
 def init_database():
@@ -130,6 +146,53 @@ def init_default_workflows():
         db.session.add(workflow)
         db.session.commit()
         logger.info("Default workflow created")
+
+def cleanup_orchestrators():
+    """Clean up old orchestrators to prevent memory leaks"""
+    global orchestrators
+    
+    current_time = time.time()
+    to_remove = []
+    
+    # Find orchestrators to remove
+    for user_id, orchestrator_data in orchestrators.items():
+        if isinstance(orchestrator_data, dict):
+            last_activity = orchestrator_data.get('last_activity', 0)
+        else:
+            # Legacy orchestrator object - mark for removal
+            last_activity = 0
+            
+        if current_time - last_activity > ORCHESTRATOR_TIMEOUT:
+            to_remove.append(user_id)
+    
+    # Remove old orchestrators
+    for user_id in to_remove:
+        if user_id in orchestrators:
+            try:
+                del orchestrators[user_id]
+                logger.info(f"Cleaned up orchestrator for user {user_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning orchestrator for user {user_id}: {e}")
+    
+    # Force garbage collection if too many orchestrators
+    if len(orchestrators) > MAX_ORCHESTRATORS:
+        # Keep only the most recent ones
+        sorted_orchestrators = sorted(
+            orchestrators.items(),
+            key=lambda x: x[1].get('last_activity', 0) if isinstance(x[1], dict) else 0,
+            reverse=True
+        )
+        
+        # Keep only the newest MAX_ORCHESTRATORS
+        new_orchestrators = dict(sorted_orchestrators[:MAX_ORCHESTRATORS])
+        orchestrators.clear()
+        orchestrators.update(new_orchestrators)
+        
+        # Force garbage collection
+        gc.collect()
+        logger.info(f"Forced cleanup: kept {len(orchestrators)} orchestrators, triggered GC")
+    
+    logger.info(f"Memory cleanup: {len(orchestrators)} active orchestrators")
 
 # Authentication decorator
 def require_auth(f):
@@ -356,7 +419,14 @@ def handle_disconnect():
     """Handle client disconnection"""
     user_id = session.get('user_id')
     if user_id and user_id in orchestrators:
-        del orchestrators[user_id]
+        try:
+            del orchestrators[user_id]
+            logger.info(f"Cleaned up orchestrator for disconnected user {user_id}")
+        except Exception as e:
+            logger.error(f"Error cleaning orchestrator for user {user_id}: {e}")
+    
+    # Trigger memory cleanup
+    cleanup_orchestrators()
     logger.info(f"SocketIO disconnection: User {user_id}")
 
 @socketio.on('send_message')
@@ -372,23 +442,56 @@ def handle_message(data):
     if not message:
         return
     
-    # Get or create orchestrator for this user
+    # Cleanup old orchestrators before creating new ones
+    cleanup_orchestrators()
+    
+    # Get or create orchestrator for this user with activity tracking
     if user_id not in orchestrators:
-        orchestrators[user_id] = DynamicChatOrchestrator(
-            socketio=socketio,
-            session_id=user_id,
-            db_path=app.config.get('SQLALCHEMY_DATABASE_URI', 'kursstudio.db')
-        )
+        try:
+            orchestrator = DynamicChatOrchestrator(
+                socketio=socketio,
+                session_id=user_id,
+                db_path=app.config.get('SQLALCHEMY_DATABASE_URI', 'kursstudio.db')
+            )
+            
+            # Store with activity tracking
+            orchestrators[user_id] = {
+                'orchestrator': orchestrator,
+                'last_activity': time.time()
+            }
+            
+            logger.info(f"Created new orchestrator for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error creating orchestrator for user {user_id}: {e}")
+            emit('error', {'message': 'Failed to initialize chat system'})
+            return
+    else:
+        # Update activity timestamp
+        if isinstance(orchestrators[user_id], dict):
+            orchestrators[user_id]['last_activity'] = time.time()
     
     # Process message
-    orchestrator = orchestrators[user_id]
-    orchestrator.process_message(message, user_id)
+    try:
+        if isinstance(orchestrators[user_id], dict):
+            orchestrator = orchestrators[user_id]['orchestrator']
+        else:
+            # Legacy format - convert
+            orchestrator = orchestrators[user_id]
+            orchestrators[user_id] = {
+                'orchestrator': orchestrator,
+                'last_activity': time.time()
+            }
+        
+        orchestrator.process_message(message, user_id)
+    except Exception as e:
+        logger.error(f"Error processing message for user {user_id}: {e}")
+        emit('error', {'message': 'Error processing your message'})
 
 # Chat cleanup scheduler
 scheduler = BackgroundScheduler()
 
 def cleanup_chats():
-    """Scheduled job to clean up old chats"""
+    """Scheduled job to clean up old chats and orchestrators"""
     try:
         retention_days = int(os.environ.get('RETENTION_DAYS', 14))
         logger.info(f"Running chat cleanup job (retention {retention_days} days)...")
@@ -396,29 +499,62 @@ def cleanup_chats():
         with app.app_context():
             cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
             
-            # Find old sessions
-            old_sessions = ChatSession.query.filter(ChatSession.updated_at < cutoff_date).all()
+            # Count before cleanup for monitoring
+            old_sessions_count = ChatSession.query.filter(ChatSession.updated_at < cutoff_date).count()
             
-            for session in old_sessions:
-                # Delete messages first
-                ChatMessage.query.filter_by(session_id=session.id).delete()
-                # Delete session
-                db.session.delete(session)
+            if old_sessions_count > 0:
+                # Delete old messages in batches to avoid memory spikes
+                batch_size = 100
+                deleted_total = 0
+                
+                while True:
+                    old_sessions = ChatSession.query.filter(ChatSession.updated_at < cutoff_date).limit(batch_size).all()
+                    if not old_sessions:
+                        break
+                    
+                    for session in old_sessions:
+                        # Delete messages first
+                        ChatMessage.query.filter_by(session_id=session.id).delete()
+                        # Delete session
+                        db.session.delete(session)
+                    
+                    db.session.commit()
+                    deleted_total += len(old_sessions)
+                    
+                    # Memory management
+                    if deleted_total % 500 == 0:
+                        gc.collect()
+                
+                logger.info(f"Chat cleanup completed: {deleted_total} sessions deleted")
+            else:
+                logger.info("Chat cleanup: no old sessions to delete")
             
-            db.session.commit()
+            # Also cleanup orchestrators
+            cleanup_orchestrators()
             
-            deleted_count = len(old_sessions)
-            logger.info(f"Chat cleanup completed: {deleted_count} sessions deleted")
+            # Force garbage collection after cleanup
+            gc.collect()
     
     except Exception as e:
         logger.error(f"Chat cleanup job failed: {e}")
+        # Force garbage collection even on error
+        gc.collect()
 
-# Schedule cleanup job
+# Schedule cleanup jobs - optimized for Railway
 scheduler.add_job(
     func=cleanup_chats,
-    trigger=IntervalTrigger(days=1),
+    trigger=IntervalTrigger(hours=6),  # Every 6 hours instead of daily
     id='chat_cleanup_job',
-    name='Daily chat cleanup',
+    name='Chat and memory cleanup',
+    replace_existing=True
+)
+
+# Additional memory cleanup every 30 minutes
+scheduler.add_job(
+    func=cleanup_orchestrators,
+    trigger=IntervalTrigger(minutes=30),
+    id='memory_cleanup_job',
+    name='Memory cleanup',
     replace_existing=True
 )
 
@@ -429,6 +565,7 @@ init_database()
 scheduler.start()
 logger.info("Scheduler started")
 logger.info("🔧 ROUTES LOADED: Including new_project route fix for Railway")
+logger.info("🚀 MEMORY OPTIMIZATION: v2025-01-24-21:45 - Worker timeout fixes deployed")
 
 if __name__ == '__main__':
     # Get port from environment (Railway sets this)

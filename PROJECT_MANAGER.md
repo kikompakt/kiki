@@ -446,6 +446,23 @@
 - **Features:** Workflow-Selection-UI, Runtime-Workflow-Switching, Step-by-Step-Progress, Conditional-Execution-Logic
 - **Result:** Chat-Interface kann beliebige Admin-definierte Workflows ausführen
 
+#### PM-TODO-019: Railway Memory Optimization & Performance Monitoring
+- Effort: M
+- Status: In Progress
+- Beschreibung: Weitere Memory-Optimierungen und Performance-Monitoring für stabile Railway-Deployment
+- Dependencies: PM-BUG-016
+- **Phase 1 Completed:**
+  - ✅ Orchestrator Cleanup System mit 30min Auto-Timeout
+  - ✅ Memory Limits (50 concurrent) + Garbage Collection
+  - ✅ Batch DB Processing + optimierte Scheduler
+  - ✅ SocketIO Buffer-Limits + Ping-Optimierung
+- **Phase 2 Planned:**
+  - [ ] Connection Pooling für Database
+  - [ ] Memory Usage Monitoring & Alerts
+  - [ ] Request Rate Limiting
+  - [ ] Graceful Degradation bei Resource-Limits
+  - [ ] Performance Metrics Dashboard
+
 #### PM-TODO-018: Outline-Approval-System implementiert ✅
 - Effort: L
 - Status: Completed ✅
@@ -596,19 +613,39 @@
 #### PM-BUG-016: Railway Performance - Worker Timeout & Memory Issues
 - ID: PM-BUG-016
 - Severity: CRITICAL 🔥
-- Status: NOT STARTED
+- Status: IN PROGRESS 🔧
 - Beschreibung: Railway Worker werden wegen Timeout und Memory-Problemen gekillt
 - Dependencies: PM-BUG-015
-- **Impact:** App ist instabil - regelmäßige Worker-Crashes und Restarts
-- **Root Cause:** Hoher Memory/CPU-Verbrauch der App
-- **Error:** 
-  - `[CRITICAL] WORKER TIMEOUT (pid:4)`
-  - `Worker (pid:4) was sent SIGKILL! Perhaps out of memory?`
-- **Fix Strategy:** 
-  1. Memory Usage optimieren
-  2. Background Tasks reduzieren
-  3. Railway Resource Limits prüfen
+- **Impact:** App ist instabil - regelmäßige Worker-Crashes und Restarts alle 60 Sekunden
+- **Root Cause:** Hoher Memory/CPU-Verbrauch der App, möglicherweise Memory-Leaks
+- **Evidence:**
+  - `[CRITICAL] WORKER TIMEOUT (pid:4,9,15)` - Workers timeout nach ~60s
+  - `Worker (pid:X) was sent SIGKILL! Perhaps out of memory?` - Memory-Issue
+  - `Invalid session` SocketIO Errors nach Worker-Restart
+  - Kontinuierlicher Worker-Cycle: Boot → Timeout → Kill → Boot
+- **Analysis Strategy:** 
+  1. Memory Usage Profile erstellen
+  2. SocketIO Connection Pool analysieren
+  3. Background Tasks identifizieren
+  4. Railway Resource Limits prüfen
+  5. Database Connection Leaks checken
+- **ROOT CAUSE IDENTIFIED:**
+  1. **Global orchestrators = {}** - Chat-Orchestrators werden nie aus Memory entfernt
+  2. **APScheduler Background Job** - cleanup_chats() läuft täglich mit DB-Operationen
+  3. **SocketIO Threading** - async_mode='threading' kann Memory akkumulieren
+  4. **SQLite Connection Leaks** - Viele kurze Verbindungen ohne Pooling
+  5. **DynamicChatOrchestrator** - Komplexe Objekte mit OpenAI Client bleiben in Memory
+- **MEMORY OPTIMIZATION FIXES IMPLEMENTED:**
+  1. ✅ **Orchestrator Cleanup System** - Auto-removal nach 30min Inaktivität
+  2. ✅ **Memory Limits** - Max 50 concurrent orchestrators mit Garbage Collection
+  3. ✅ **Activity Tracking** - Timestamp-basierte Orchestrator-Verwaltung
+  4. ✅ **Batch Processing** - DB-Cleanup in 100er-Batches statt Bulk-Operations
+  5. ✅ **Scheduler Optimization** - 6h statt 24h Cleanup + 30min Memory-Cleanup
+  6. ✅ **SocketIO Optimization** - 1MB Buffer-Limit + Ping-Timeouts
+  7. ✅ **Log Reduction** - urllib3/werkzeug auf WARNING für Memory-Savings
+  8. ✅ **Error Handling** - Graceful Degradation bei Memory-Problemen
 - **Created:** 2025-01-24 20:50
+- **Updated:** 2025-01-24 21:45 - Memory optimization fixes deployed
 
 #### PM-BUG-017: Template Error - SQLAlchemy Row Object in admin_workflows
 - ID: PM-BUG-017
