@@ -593,6 +593,20 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-011: Railway Deployment - Flask-SQLAlchemy Missing Dependency
+- ID: PM-BUG-011
+- Severity: CRITICAL 🔥
+- Status: RESOLVED ✅
+- Beschreibung: Railway Deployment schlägt fehl wegen fehlender Flask-SQLAlchemy Dependency
+- Dependencies: PM-BUG-010
+- **Impact:** Kompletter Deployment-Failure - models.py kann nicht importiert werden
+- **Root Cause:** Flask-SQLAlchemy nicht in requirements.txt obwohl models.py es benötigt
+- **Error:** `ModuleNotFoundError: No module named 'flask_sqlalchemy'`
+- **Fix Strategy:** Flask-SQLAlchemy zu requirements.txt hinzufügen
+- **Resolution:** requirements.txt updated: Flask-SQLAlchemy==3.0.5
+- **Created:** 2025-01-24 20:25
+- **Resolved:** 2025-01-24 20:25
+
 #### PM-BUG-010: Railway Deployment - OpenAI Library Version Incompatibility
 - ID: PM-BUG-010
 - Severity: CRITICAL 🔥

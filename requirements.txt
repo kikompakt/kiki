@@ -6,6 +6,7 @@ gunicorn==21.2.0
 
 # Database & ORM
 SQLAlchemy==2.0.25
+Flask-SQLAlchemy==3.0.5
 psycopg2-binary==2.9.9
 
 # OpenAI & AI/ML
