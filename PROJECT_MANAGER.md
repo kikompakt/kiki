@@ -593,6 +593,20 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-010: Railway Deployment - OpenAI Library Version Incompatibility
+- ID: PM-BUG-010
+- Severity: CRITICAL 🔥
+- Status: RESOLVED ✅
+- Beschreibung: Railway Deployment schlägt fehl wegen veralteter OpenAI Library Version
+- Dependencies: keine
+- **Impact:** Kompletter Deployment-Failure auf Railway
+- **Root Cause:** openai==1.12.0 zu alt - TypeError bei 'proxies' Parameter
+- **Error:** `TypeError: Client.__init__() got an unexpected keyword argument 'proxies'`
+- **Fix Strategy:** OpenAI Library auf aktuelle Version updaten
+- **Resolution:** requirements.txt updated: openai>=1.30.0
+- **Created:** 2025-01-24 20:10
+- **Resolved:** 2025-01-24 20:10
+
 #### PM-BUG-004: SocketIO Verbindungsfehler - Authentication-Check blockiert Chat
 - ID: PM-BUG-004
 - Severity: CRITICAL 🔥
