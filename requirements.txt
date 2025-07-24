@@ -1,17 +1,26 @@
-Flask==2.2.2
-openai
-python-dotenv
-Flask-SocketIO
-apscheduler
-numpy
-requests
-werkzeug
-gunicorn
-psycopg2-binary
-sentence-transformers
-chromadb
-PyPDF2
-python-docx
-beautifulsoup4
-Flask-Login
-SQLAlchemy 
+# Core Framework
+Flask==2.2.3
+Flask-Login==0.6.3
+Flask-SocketIO==5.3.6
+gunicorn==21.2.0
+
+# Database & ORM
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+
+# OpenAI & AI/ML
+openai==1.12.0
+chromadb==0.4.24
+sentence-transformers==2.2.2
+numpy==1.26.4
+
+# Utilities
+python-dotenv==1.0.1
+APScheduler==3.10.4
+requests==2.31.0
+Werkzeug==2.3.8
+
+# File Processing
+PyPDF2==3.0.1
+python-docx==1.1.0
+beautifulsoup4==4.12.3 
