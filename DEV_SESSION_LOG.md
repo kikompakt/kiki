@@ -39,6 +39,11 @@ TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
 - **Root Cause:** Database-Init nur in `if __name__ == '__main__':` Block
 - **Fix:** init_database() beim App-Import ausführen (außerhalb if-Block)
 
+**Follow-up Bug 4:** `BuildError: Could not build url for endpoint 'new_project'`
+- **Problem:** Dashboard Template referenziert nicht-existierende Route
+- **Root Cause:** new_project Route nicht in app_railway.py definiert
+- **Fix:** new_project POST Route mit Project-Creation implementiert
+
 ### 🎯 **NÄCHSTE SCHRITTE**
 - [ ] Test Deployment auf Railway
 - [ ] Verify OpenAI API compatibility

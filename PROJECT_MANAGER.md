@@ -593,6 +593,24 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-014: Railway Deployment - Missing new_project Route
+- ID: PM-BUG-014
+- Severity: HIGH 🔥
+- Status: RESOLVED ✅
+- Beschreibung: Dashboard crasht wegen fehlender new_project Route
+- Dependencies: PM-BUG-013
+- **Impact:** Dashboard nicht verwendbar - User können keine Projekte erstellen
+- **Root Cause:** dashboard.html referenziert url_for('new_project') aber Route ist nicht definiert
+- **Error:** `BuildError: Could not build url for endpoint 'new_project'`
+- **Fix Strategy:** Missing new_project POST route implementieren
+- **Resolution:** 
+  - new_project Route hinzugefügt mit POST method
+  - Form-Handling für title/description
+  - Project-Creation in Database
+  - Flash-Messages und Error-Handling
+- **Created:** 2025-01-24 20:40
+- **Resolved:** 2025-01-24 20:40
+
 #### PM-BUG-013: Railway Deployment - Database Tables Not Initialized
 - ID: PM-BUG-013
 - Severity: CRITICAL 🔥

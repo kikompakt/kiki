@@ -200,6 +200,38 @@ def dashboard():
     user = User.query.get(session['user_id'])
     return render_template('dashboard.html', user=user)
 
+@app.route('/new_project', methods=['POST'])
+@require_auth
+def new_project():
+    """Create a new project"""
+    try:
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        
+        if not title:
+            flash('Projekt-Titel ist erforderlich', 'error')
+            return redirect(url_for('dashboard'))
+            
+        # Create new project
+        project = Project(
+            title=title,
+            description=description if description else None,
+            user_id=session['user_id']
+        )
+        
+        db.session.add(project)
+        db.session.commit()
+        
+        flash(f'Projekt "{title}" erfolgreich erstellt!', 'success')
+        logger.info(f"New project created: {title} by user {session['user_id']}")
+        
+    except Exception as e:
+        logger.error(f"Error creating project: {e}")
+        flash('Fehler beim Erstellen des Projekts', 'error')
+        db.session.rollback()
+    
+    return redirect(url_for('dashboard'))
+
 @app.route('/chat')
 @require_auth
 def chat():
