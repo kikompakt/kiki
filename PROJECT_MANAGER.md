@@ -593,6 +593,20 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-012: Railway Deployment - Flask Version Dependency Conflict
+- ID: PM-BUG-012
+- Severity: CRITICAL 🔥
+- Status: RESOLVED ✅
+- Beschreibung: Railway Deployment schlägt fehl wegen Flask Version Konflikt mit Flask-SQLAlchemy
+- Dependencies: PM-BUG-011
+- **Impact:** Docker build failed - pip kann Requirements nicht installieren
+- **Root Cause:** Flask==2.2.3 zu alt für Flask-SQLAlchemy==3.0.5 (benötigt >=2.2.5)
+- **Error:** `Cannot install Flask==2.2.3 and flask-sqlalchemy 3.0.5 because these package versions have conflicting dependencies`
+- **Fix Strategy:** Flask Version auf kompatible Version updaten
+- **Resolution:** Flask 2.2.3 → 2.3.3 (erfüllt flask-sqlalchemy>=2.2.5 requirement)
+- **Created:** 2025-01-24 20:30
+- **Resolved:** 2025-01-24 20:30
+
 #### PM-BUG-011: Railway Deployment - Flask-SQLAlchemy Missing Dependency
 - ID: PM-BUG-011
 - Severity: CRITICAL 🔥

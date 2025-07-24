@@ -25,10 +25,14 @@ TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
 **ALT:** `openai==1.12.0`  
 **NEU:** `openai>=1.30.0`
 
-### 🎯 **UPDATE: FLASK-SQLALCHEMY FIX**
-**Follow-up Bug:** `ModuleNotFoundError: No module named 'flask_sqlalchemy'`
+### 🎯 **UPDATE: FLASK-SQLALCHEMY & VERSION CONFLICT FIXES**
+**Follow-up Bug 1:** `ModuleNotFoundError: No module named 'flask_sqlalchemy'`
 - **Problem:** models.py benötigt Flask-SQLAlchemy, aber nicht in requirements.txt
 - **Fix:** Flask-SQLAlchemy==3.0.5 hinzugefügt
+
+**Follow-up Bug 2:** `Cannot install Flask==2.2.3 and flask-sqlalchemy 3.0.5`
+- **Problem:** Flask Version 2.2.3 zu alt für Flask-SQLAlchemy 3.0.5 (benötigt >=2.2.5)
+- **Fix:** Flask 2.2.3 → 2.3.3 (kompatibel mit Flask-SQLAlchemy)
 
 ### 🎯 **NÄCHSTE SCHRITTE**
 - [ ] Test Deployment auf Railway
