@@ -383,14 +383,14 @@ scheduler.add_job(
     replace_existing=True
 )
 
+# Initialize database immediately (wichtig für gunicorn/Railway)
+init_database()
+
+# Start scheduler
+scheduler.start()
+logger.info("Scheduler started")
+
 if __name__ == '__main__':
-    # Initialize database
-    init_database()
-    
-    # Start scheduler
-    scheduler.start()
-    logger.info("Scheduler started")
-    
     # Get port from environment (Railway sets this)
     port = int(os.environ.get('PORT', 5000))
     

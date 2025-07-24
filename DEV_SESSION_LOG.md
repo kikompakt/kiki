@@ -34,6 +34,11 @@ TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
 - **Problem:** Flask Version 2.2.3 zu alt für Flask-SQLAlchemy 3.0.5 (benötigt >=2.2.5)
 - **Fix:** Flask 2.2.3 → 2.3.3 (kompatibel mit Flask-SQLAlchemy)
 
+**Follow-up Bug 3:** `sqlite3.OperationalError: no such table: users`
+- **Problem:** App startet, aber init_database() wird von gunicorn nicht ausgeführt
+- **Root Cause:** Database-Init nur in `if __name__ == '__main__':` Block
+- **Fix:** init_database() beim App-Import ausführen (außerhalb if-Block)
+
 ### 🎯 **NÄCHSTE SCHRITTE**
 - [ ] Test Deployment auf Railway
 - [ ] Verify OpenAI API compatibility

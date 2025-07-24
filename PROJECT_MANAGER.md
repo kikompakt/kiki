@@ -593,6 +593,20 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-013: Railway Deployment - Database Tables Not Initialized
+- ID: PM-BUG-013
+- Severity: CRITICAL 🔥
+- Status: RESOLVED ✅
+- Beschreibung: App startet erfolgreich, aber Database-Tabellen existieren nicht
+- Dependencies: PM-BUG-012
+- **Impact:** Runtime Error bei Login - keine User-Authentifizierung möglich
+- **Root Cause:** init_database() nur in `if __name__ == '__main__':` - wird von gunicorn nicht ausgeführt
+- **Error:** `sqlite3.OperationalError: no such table: users`
+- **Fix Strategy:** Database-Initialisierung beim App-Import ausführen, nicht nur bei direktem Start
+- **Resolution:** init_database() und scheduler.start() aus if-Block raus → wird immer ausgeführt
+- **Created:** 2025-01-24 20:35
+- **Resolved:** 2025-01-24 20:35
+
 #### PM-BUG-012: Railway Deployment - Flask Version Dependency Conflict
 - ID: PM-BUG-012
 - Severity: CRITICAL 🔥
