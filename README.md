@@ -123,8 +123,8 @@ Workflow:
 
 ### **Environment Variables**
 ```bash
+# In .env für lokale Entwicklung oder als Variable auf Railway
 OPENAI_API_KEY=your_openai_api_key
-CHAT_ASSISTANT_ID=asst_xxxxx  # Auto-generiert
 FLASK_SECRET_KEY=your_secret_key
 DEBUG=True
 ```
