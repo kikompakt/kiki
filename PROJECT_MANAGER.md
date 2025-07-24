@@ -593,6 +593,26 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-015: Railway Deployment - Cache/Deploy Issue - Old Version Active
+- ID: PM-BUG-015
+- Severity: HIGH 🔥
+- Status: IN PROGRESS 🔄
+- Beschreibung: Railway verwendet alte Version trotz gepushter Fixes
+- Dependencies: PM-BUG-014
+- **Impact:** Alle Route-Fixes sind verfügbar aber Railway deployt sie nicht
+- **Root Cause:** Railway Cache oder Deployment-Pipeline-Problem
+- **Error:** Same `BuildError: Could not build url for endpoint 'new_project'` trotz Fix
+- **Fix Strategy:** 
+  1. Force Redeploy mit Version-Logging triggern
+  2. Debug-Logs hinzufügen um deployed Version zu tracken
+  3. Railway Dashboard checken
+- **Actions Taken:**
+  - ✅ Version-Logging hinzugefügt (commit 1a4884e)
+  - ✅ Force Push für neuen Railway Deploy
+  - 🔄 Warten auf Railway Build/Deploy
+- **Created:** 2025-01-24 20:45
+- **Status:** Wartend auf Railway Deploy
+
 #### PM-BUG-014: Railway Deployment - Missing new_project Route
 - ID: PM-BUG-014
 - Severity: HIGH 🔥

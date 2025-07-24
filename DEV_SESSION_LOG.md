@@ -44,6 +44,11 @@ TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
 - **Root Cause:** new_project Route nicht in app_railway.py definiert
 - **Fix:** new_project POST Route mit Project-Creation implementiert
 
+**Follow-up Bug 5:** `Railway Cache/Deploy Issue - Alte Version aktiv`
+- **Problem:** Railway zeigt trotz Fixes weiterhin alte Errors
+- **Root Cause:** Railway Deploy-Pipeline/Cache hält alte Version
+- **Action:** Force Redeploy mit Version-Logging (commit 1a4884e)
+
 ### 🎯 **NÄCHSTE SCHRITTE**
 - [ ] Test Deployment auf Railway
 - [ ] Verify OpenAI API compatibility
