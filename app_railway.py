@@ -255,10 +255,17 @@ def admin_assistants():
 @require_admin
 def admin_workflows():
     """Workflow management"""
-    workflows = db.session.query(
+    # Query workflows and add step_count as an attribute
+    workflows_raw = db.session.query(
         Workflow,
         db.func.count(WorkflowStep.id).label('step_count')
     ).outerjoin(WorkflowStep).group_by(Workflow.id).all()
+    
+    # Convert tuples to workflow objects with step_count attribute
+    workflows = []
+    for workflow_obj, step_count in workflows_raw:
+        workflow_obj.step_count = step_count
+        workflows.append(workflow_obj)
     
     assistants = Assistant.query.filter_by(is_active=True).all()
     return render_template('admin_workflows.html', workflows=workflows, assistants=assistants)

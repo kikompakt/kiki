@@ -593,10 +593,45 @@
 
 ## 🐛 ACTIVE BUGS & ISSUES TRACKER
 
+#### PM-BUG-016: Railway Performance - Worker Timeout & Memory Issues
+- ID: PM-BUG-016
+- Severity: CRITICAL 🔥
+- Status: NOT STARTED
+- Beschreibung: Railway Worker werden wegen Timeout und Memory-Problemen gekillt
+- Dependencies: PM-BUG-015
+- **Impact:** App ist instabil - regelmäßige Worker-Crashes und Restarts
+- **Root Cause:** Hoher Memory/CPU-Verbrauch der App
+- **Error:** 
+  - `[CRITICAL] WORKER TIMEOUT (pid:4)`
+  - `Worker (pid:4) was sent SIGKILL! Perhaps out of memory?`
+- **Fix Strategy:** 
+  1. Memory Usage optimieren
+  2. Background Tasks reduzieren
+  3. Railway Resource Limits prüfen
+- **Created:** 2025-01-24 20:50
+
+#### PM-BUG-017: Template Error - SQLAlchemy Row Object in admin_workflows
+- ID: PM-BUG-017
+- Severity: HIGH 🔥
+- Status: RESOLVED ✅
+- Beschreibung: Admin Workflows Seite crasht wegen Jinja2 Template Error
+- Dependencies: PM-BUG-016
+- **Impact:** Admin-Interface nicht verwendbar für Workflow-Management
+- **Root Cause:** Template versucht workflow_type auf Row object zuzugreifen statt auf Workflow object
+- **Error:** `'sqlalchemy.engine.row.Row object' has no attribute 'workflow_type'`
+- **Fix Strategy:** SQLAlchemy Query Result richtig in Template verwenden
+- **Resolution:**
+  - Query-Result von Tuples (Workflow, step_count) zu Workflow-Objects mit step_count Attribut konvertiert
+  - Template kann jetzt direkt workflow.workflow_type und workflow.step_count verwenden
+  - Admin Workflows Seite funktioniert wieder
+- **Location:** templates/admin_workflows.html:207
+- **Created:** 2025-01-24 20:50
+- **Resolved:** 2025-01-24 20:55
+
 #### PM-BUG-015: Railway Deployment - Cache/Deploy Issue - Old Version Active
 - ID: PM-BUG-015
 - Severity: HIGH 🔥
-- Status: IN PROGRESS 🔄
+- Status: RESOLVED ✅
 - Beschreibung: Railway verwendet alte Version trotz gepushter Fixes
 - Dependencies: PM-BUG-014
 - **Impact:** Alle Route-Fixes sind verfügbar aber Railway deployt sie nicht
@@ -606,12 +641,12 @@
   1. Force Redeploy mit Version-Logging triggern
   2. Debug-Logs hinzufügen um deployed Version zu tracken
   3. Railway Dashboard checken
-- **Actions Taken:**
+- **Resolution:**
   - ✅ Version-Logging hinzugefügt (commit 1a4884e)
-  - ✅ Force Push für neuen Railway Deploy
-  - 🔄 Warten auf Railway Build/Deploy
+  - ✅ Force Push erfolgreich - neue Version live
+  - ✅ Debug-Log bestätigt: "🔧 ROUTES LOADED: Including new_project route fix for Railway"
 - **Created:** 2025-01-24 20:45
-- **Status:** Wartend auf Railway Deploy
+- **Resolved:** 2025-01-24 20:50
 
 #### PM-BUG-014: Railway Deployment - Missing new_project Route
 - ID: PM-BUG-014

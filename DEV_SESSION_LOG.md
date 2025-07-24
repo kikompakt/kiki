@@ -47,7 +47,19 @@ TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
 **Follow-up Bug 5:** `Railway Cache/Deploy Issue - Alte Version aktiv`
 - **Problem:** Railway zeigt trotz Fixes weiterhin alte Errors
 - **Root Cause:** Railway Deploy-Pipeline/Cache hält alte Version
-- **Action:** Force Redeploy mit Version-Logging (commit 1a4884e)
+- **Fix:** Force Redeploy mit Version-Logging (commit 1a4884e) ✅ RESOLVED
+
+### 🎯 **NEUE PROBLEME NACH SUCCESSFUL DEPLOY:**
+
+**New Bug 6:** `WORKER TIMEOUT & Memory Issues`
+- **Problem:** Railway Worker crashen regelmäßig wegen Memory/CPU
+- **Symptoms:** `[CRITICAL] WORKER TIMEOUT` und `SIGKILL! Perhaps out of memory?`
+- **Impact:** App-Instabilität, häufige Restarts
+
+**New Bug 7:** `SQLAlchemy Row Template Error`
+- **Problem:** Admin Workflows crasht wegen Jinja2 Template Error
+- **Error:** `'sqlalchemy.engine.row.Row object' has no attribute 'workflow_type'`
+- **Fix:** Query-Result von Tuples zu Workflow-Objects konvertiert ✅ RESOLVED
 
 ### 🎯 **NÄCHSTE SCHRITTE**
 - [ ] Test Deployment auf Railway
