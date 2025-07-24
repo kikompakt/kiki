@@ -421,6 +421,7 @@ init_database()
 # Start scheduler
 scheduler.start()
 logger.info("Scheduler started")
+logger.info("🔧 ROUTES LOADED: Including new_project route fix for Railway")
 
 if __name__ == '__main__':
     # Get port from environment (Railway sets this)
@@ -428,6 +429,7 @@ if __name__ == '__main__':
     
     logger.info("Starting Intelligentes KI-Kursstudio (Railway Version)...")
     logger.info(f"Database: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...")
+    logger.info("🚀 VERSION: 2025-01-24-v2 - NEW_PROJECT ROUTE INCLUDED")
     
     # Run the app
     socketio.run(app, host='0.0.0.0', port=port, debug=False) 
