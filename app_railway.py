@@ -39,20 +39,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 db.init_app(app)
-# Optimized SocketIO for Railway with gevent fallback
-try:
-    import gevent
-    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', 
-                       ping_timeout=60, ping_interval=25, 
-                       max_http_buffer_size=1024*1024)  # 1MB limit
-    logger.info("SocketIO initialized with gevent")
-except ImportError:
-    socketio = SocketIO(app, cors_allowed_origins="*", 
-                       ping_timeout=60, ping_interval=25, 
-                       max_http_buffer_size=1024*1024)  # 1MB limit
-    logger.warning("SocketIO initialized without gevent - using threading")
 
-# Configure logging - optimized for Railway
+# Configure logging - optimized for Railway (MUST BE BEFORE SOCKETIO!)
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s:%(name)s:%(message)s',
@@ -63,6 +51,19 @@ logger = logging.getLogger(__name__)
 # Reduce verbose logging for certain modules
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
+# Optimized SocketIO for Railway with gevent fallback
+try:
+    import gevent
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', 
+                       ping_timeout=60, ping_interval=25, 
+                       max_http_buffer_size=1024*1024)  # 1MB limit
+    logger.info("SocketIO initialized with gevent")
+except (ImportError, ModuleNotFoundError):
+    socketio = SocketIO(app, cors_allowed_origins="*", 
+                       ping_timeout=60, ping_interval=25, 
+                       max_http_buffer_size=1024*1024)  # 1MB limit
+    logger.warning("SocketIO initialized without gevent - using threading")
 
 # Global orchestrator storage with cleanup
 orchestrators = {}
