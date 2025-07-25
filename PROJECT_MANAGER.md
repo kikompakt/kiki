@@ -648,10 +648,12 @@
   - **PostgreSQL Database:** Vor 18min hinzugefügt, aber DATABASE_URL nicht konfiguriert
   - **Gunicorn Worker:** "sync" Modus inkompatibel mit SocketIO + PostgreSQL
   - **Connection Issues:** App versucht PostgreSQL zu nutzen, aber kann nicht verbinden
+  - **SQLAlchemy 2.0:** `db.engine.execute()` deprecated - muss `db.text()` verwenden
 - **FIXES IMPLEMENTED:**
-  - ✅ **Gevent Worker:** `-k gevent` für asynchrone WebSocket-Unterstützung
+  - ✅ **Gevent Worker:** `--worker-class gevent` für asynchrone WebSocket-Unterstützung
   - ✅ **Database Fallback:** Automatischer Fallback zu SQLite bei PostgreSQL-Fehlern
-  - ✅ **Connection Testing:** Database-Connection-Test vor Initialisierung
+  - ✅ **SQLAlchemy 2.0:** `with db.engine.connect() as conn: conn.execute(db.text('SELECT 1'))`
+  - ✅ **Gevent Fallback:** SocketIO mit gevent-Import-Check für Robustheit
   - ✅ **Enhanced Logging:** Detaillierte Database-Connection-Logs
 - **Created:** 2025-01-24 20:50
 - **Updated:** 2025-01-24 22:00 - Root cause found, PostgreSQL fixes implemented

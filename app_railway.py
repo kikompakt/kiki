@@ -39,10 +39,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 db.init_app(app)
-# Optimized SocketIO for Railway with gevent
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', 
-                   ping_timeout=60, ping_interval=25, 
-                   max_http_buffer_size=1024*1024)  # 1MB limit
+# Optimized SocketIO for Railway with gevent fallback
+try:
+    import gevent
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', 
+                       ping_timeout=60, ping_interval=25, 
+                       max_http_buffer_size=1024*1024)  # 1MB limit
+    logger.info("SocketIO initialized with gevent")
+except ImportError:
+    socketio = SocketIO(app, cors_allowed_origins="*", 
+                       ping_timeout=60, ping_interval=25, 
+                       max_http_buffer_size=1024*1024)  # 1MB limit
+    logger.warning("SocketIO initialized without gevent - using threading")
 
 # Configure logging - optimized for Railway
 logging.basicConfig(
@@ -71,8 +79,10 @@ def init_database():
             # Test database connection first
             logger.info(f"Connecting to database: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...")
             
-            # Test connection
-            db.engine.execute('SELECT 1')
+            # Test connection - SQLAlchemy 2.0 compatible
+            with db.engine.connect() as conn:
+                conn.execute(db.text('SELECT 1'))
+                conn.commit()
             logger.info("Database connection successful")
             
             # Create tables
@@ -596,7 +606,7 @@ init_database()
 scheduler.start()
 logger.info("Scheduler started")
 logger.info("🔧 ROUTES LOADED: Including new_project route fix for Railway")
-logger.info("🚀 POSTGRESQL + GEVENT: v2025-01-24-22:00 - Database + Worker fixes deployed")
+logger.info("🚀 SQLALCHEMY 2.0 + GEVENT: v2025-01-25-08:35 - Database compatibility fixes deployed")
 
 if __name__ == '__main__':
     # Get port from environment (Railway sets this)
