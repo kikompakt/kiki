@@ -39,8 +39,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 db.init_app(app)
-# Optimized SocketIO for Railway memory limits
-socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25, 
+# Optimized SocketIO for Railway with gevent
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', 
+                   ping_timeout=60, ping_interval=25, 
                    max_http_buffer_size=1024*1024)  # 1MB limit
 
 # Configure logging - optimized for Railway
@@ -67,14 +68,44 @@ def init_database():
     """Initialize database with tables and default data"""
     with app.app_context():
         try:
+            # Test database connection first
+            logger.info(f"Connecting to database: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...")
+            
+            # Test connection
+            db.engine.execute('SELECT 1')
+            logger.info("Database connection successful")
+            
+            # Create tables
             db.create_all()
+            logger.info("Database tables created")
+            
+            # Initialize default data
             init_default_users()
             init_default_assistants()
             init_default_workflows()
+            
             logger.info("Database initialized successfully")
             return True
+            
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
+            logger.error(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
+            
+            # Fallback to SQLite if PostgreSQL fails
+            if 'postgresql' in app.config['SQLALCHEMY_DATABASE_URI']:
+                logger.warning("PostgreSQL connection failed, falling back to SQLite")
+                app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///kursstudio.db'
+                try:
+                    db.create_all()
+                    init_default_users()
+                    init_default_assistants()
+                    init_default_workflows()
+                    logger.info("Fallback to SQLite successful")
+                    return True
+                except Exception as fallback_error:
+                    logger.error(f"SQLite fallback also failed: {fallback_error}")
+                    return False
+            
             return False
 
 def init_default_users():
@@ -565,7 +596,7 @@ init_database()
 scheduler.start()
 logger.info("Scheduler started")
 logger.info("🔧 ROUTES LOADED: Including new_project route fix for Railway")
-logger.info("🚀 MEMORY OPTIMIZATION: v2025-01-24-21:45 - Worker timeout fixes deployed")
+logger.info("🚀 POSTGRESQL + GEVENT: v2025-01-24-22:00 - Database + Worker fixes deployed")
 
 if __name__ == '__main__':
     # Get port from environment (Railway sets this)

@@ -613,7 +613,7 @@
 #### PM-BUG-016: Railway Performance - Worker Timeout & Memory Issues
 - ID: PM-BUG-016
 - Severity: CRITICAL 🔥
-- Status: IN PROGRESS 🔧
+- Status: ROOT CAUSE FOUND - FIXING 🔧
 - Beschreibung: Railway Worker werden wegen Timeout und Memory-Problemen gekillt
 - Dependencies: PM-BUG-015
 - **Impact:** App ist instabil - regelmäßige Worker-Crashes und Restarts alle 60 Sekunden
@@ -644,8 +644,17 @@
   6. ✅ **SocketIO Optimization** - 1MB Buffer-Limit + Ping-Timeouts
   7. ✅ **Log Reduction** - urllib3/werkzeug auf WARNING für Memory-Savings
   8. ✅ **Error Handling** - Graceful Degradation bei Memory-Problemen
+- **ROOT CAUSE IDENTIFIED:**
+  - **PostgreSQL Database:** Vor 18min hinzugefügt, aber DATABASE_URL nicht konfiguriert
+  - **Gunicorn Worker:** "sync" Modus inkompatibel mit SocketIO + PostgreSQL
+  - **Connection Issues:** App versucht PostgreSQL zu nutzen, aber kann nicht verbinden
+- **FIXES IMPLEMENTED:**
+  - ✅ **Gevent Worker:** `-k gevent` für asynchrone WebSocket-Unterstützung
+  - ✅ **Database Fallback:** Automatischer Fallback zu SQLite bei PostgreSQL-Fehlern
+  - ✅ **Connection Testing:** Database-Connection-Test vor Initialisierung
+  - ✅ **Enhanced Logging:** Detaillierte Database-Connection-Logs
 - **Created:** 2025-01-24 20:50
-- **Updated:** 2025-01-24 21:45 - Memory optimization fixes deployed
+- **Updated:** 2025-01-24 22:00 - Root cause found, PostgreSQL fixes implemented
 
 #### PM-BUG-017: Template Error - SQLAlchemy Row Object in admin_workflows
 - ID: PM-BUG-017
