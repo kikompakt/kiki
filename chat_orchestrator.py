@@ -6,6 +6,8 @@ NEUE FEATURES:
 - Dynamische Assistant-Verwaltung aus DB
 - Flexible Tool-Call-Routing
 - User-konfigurierbare Workflows
+- MEMORY MANAGEMENT: TTL-basiertes Cleanup-System mit Singleton-Pattern
+- TYPE SAFETY: Umfassende Type-Hints für bessere Code-Qualität
 """
 
 import os
@@ -13,17 +15,121 @@ import json
 import time
 import sqlite3
 import threading
-from datetime import datetime
+import gc
+import logging
+import base64
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Any, List
+
 from openai import OpenAI
 from dotenv import load_dotenv
 from quality_assessment import assess_course_quality
-import base64
 
 # .env-Datei laden
 load_dotenv()
 
-# OpenAI Client initialisieren
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# OpenAI Client initialisieren (Singleton Pattern)
+_openai_client = None
+
+def get_openai_client() -> OpenAI:
+    """Singleton Pattern für OpenAI Client - verhindert Memory-Leak durch zu viele Instanzen"""
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    return _openai_client
+
+# Global orchestrator instance für Web-App Integration mit Cleanup-System
+active_orchestrators: Dict[str, 'DynamicChatOrchestrator'] = {}
+orchestrator_last_activity: Dict[str, datetime] = {}
+
+# Memory Management Konfiguration
+ORCHESTRATOR_TTL_MINUTES = 30  # Time-to-live für inaktive Orchestrators
+MAX_CONCURRENT_ORCHESTRATORS = 50  # Maximum gleichzeitige Orchestrators
+CLEANUP_INTERVAL_MINUTES = 10  # Cleanup-Interval
+
+logger = logging.getLogger(__name__)
+
+def cleanup_inactive_orchestrators():
+    """
+    MEMORY MANAGEMENT: Bereinigt inaktive Orchestrators zur Memory-Optimierung
+    Wird automatisch vom Scheduler aufgerufen
+    """
+    global active_orchestrators, orchestrator_last_activity
+    
+    now = datetime.now()
+    ttl_threshold = now - timedelta(minutes=ORCHESTRATOR_TTL_MINUTES)
+    cleanup_count = 0
+    
+    # Identifiziere inaktive Orchestrators
+    inactive_keys = []
+    for key, last_activity in orchestrator_last_activity.items():
+        if last_activity < ttl_threshold:
+            inactive_keys.append(key)
+    
+    # Bereinige inaktive Orchestrators
+    for key in inactive_keys:
+        if key in active_orchestrators:
+            try:
+                # Orchestrator cleanup
+                orchestrator = active_orchestrators[key]
+                orchestrator._cleanup()
+                del active_orchestrators[key]
+                del orchestrator_last_activity[key]
+                cleanup_count += 1
+            except Exception as e:
+                logger.warning(f"Orchestrator cleanup error für {key}: {e}")
+    
+    # Force Garbage Collection bei größeren Cleanups
+    if cleanup_count > 5:
+        gc.collect()
+    
+    logger.info(f"🧹 Memory Cleanup: {cleanup_count} inaktive Orchestrators bereinigt. Aktiv: {len(active_orchestrators)}")
+    
+    # Limit enforcement: Bei zu vielen aktiven Orchestrators älteste entfernen
+    if len(active_orchestrators) > MAX_CONCURRENT_ORCHESTRATORS:
+        sorted_by_activity = sorted(orchestrator_last_activity.items(), key=lambda x: x[1])
+        excess_count = len(active_orchestrators) - MAX_CONCURRENT_ORCHESTRATORS
+        
+        for key, _ in sorted_by_activity[:excess_count]:
+            if key in active_orchestrators:
+                try:
+                    active_orchestrators[key]._cleanup()
+                    del active_orchestrators[key]
+                    del orchestrator_last_activity[key]
+                except Exception as e:
+                    logger.warning(f"Force cleanup error für {key}: {e}")
+        
+        gc.collect()
+        logger.info(f"🚨 Force cleanup: {excess_count} Orchestrators entfernt. Limit: {MAX_CONCURRENT_ORCHESTRATORS}")
+
+def get_or_create_orchestrator(project_id: str, session_id: str, socketio) -> 'DynamicChatOrchestrator':
+    """
+    MEMORY MANAGEMENT: Factory-Function für Orchestrators mit Activity-Tracking
+    """
+    orchestrator_key = f"{project_id}_{session_id}"
+    
+    # Update activity timestamp
+    orchestrator_last_activity[orchestrator_key] = datetime.now()
+    
+    # Return existing orchestrator
+    if orchestrator_key in active_orchestrators:
+        return active_orchestrators[orchestrator_key]
+    
+    # Create new orchestrator
+    orchestrator = DynamicChatOrchestrator(
+        socketio=socketio,
+        project_id=project_id,
+        session_id=session_id
+    )
+    
+    active_orchestrators[orchestrator_key] = orchestrator
+    logger.info(f"🤖 Neuer Orchestrator erstellt: {orchestrator_key}. Aktiv: {len(active_orchestrators)}")
+    
+    # Trigger cleanup if nearing limit
+    if len(active_orchestrators) > MAX_CONCURRENT_ORCHESTRATORS * 0.8:
+        threading.Thread(target=cleanup_inactive_orchestrators, daemon=True).start()
+    
+    return orchestrator
 
 class DynamicChatOrchestrator:
     """
@@ -34,75 +140,120 @@ class DynamicChatOrchestrator:
     - Dynamische Assistant-Verwaltung aus Datenbank
     - Flexible Tool-Call-Routing
     - User-konfigurierbare Workflows
+    - MEMORY MANAGEMENT: TTL-basiertes Cleanup-System
     """
     
-    def __init__(self, socketio, project_id=None, session_id=None, db_path="kursstudio.db"):
+    def __init__(self, socketio, project_id: Optional[str] = None, session_id: Optional[str] = None, db_path: str = "kursstudio.db"):
         self.socketio = socketio
         self.project_id = project_id
         self.session_id = session_id
         self.db_path = db_path
-        self.client = client
+        self.client = get_openai_client()  # Singleton Client verwenden
         self.supervisor_assistant = None
-        self.assistants = {}  # Cache für alle verfügbaren Assistants
+        self.assistants: Dict[str, Dict[str, Any]] = {}  # Cache für alle verfügbaren Assistants
         self.thread = None
         self.current_run = None
         self.is_processing = False
+        
+        # Memory tracking
+        self.created_at = datetime.now()
+        self.last_activity = datetime.now()
         
         # Chat-spezifische Einstellungen
         self.chat_mode = "collaborative"  # collaborative oder autonomous
         self.response_callbacks = []
         
         # Final content tracking
-        self.course_content_stages = {}  # Track content through each stage
+        self.course_content_stages: Dict[str, str] = {}  # Track content through each stage
         self.final_course_content = ""  # The complete final course
         
         # Assistants beim Start laden
         self._load_assistants_from_db()
         
-    def _load_assistants_from_db(self):
-        """Lädt alle aktiven Assistants aus der Datenbank."""
+        # Activity tracking aktualisieren
+        self._update_activity()
+    
+    def _update_activity(self):
+        """Aktualisiert Activity-Timestamp für Memory-Management"""
+        self.last_activity = datetime.now()
+        orchestrator_key = f"{self.project_id}_{self.session_id}"
+        orchestrator_last_activity[orchestrator_key] = self.last_activity
+    
+    def _cleanup(self):
+        """
+        MEMORY MANAGEMENT: Bereinigt Orchestrator-Ressourcen
+        """
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT * FROM assistants 
-                    WHERE is_active = 1 
-                    ORDER BY order_index ASC
-                ''')
-                assistants = cursor.fetchall()
-                
-                # Cache assistants mit erweiterten Parametern
-                for assistant in assistants:
-                    assistant_data = dict(assistant)
-                    
-                    # Parse enabled_tools JSON falls vorhanden
-                    if assistant_data.get('enabled_tools'):
-                        try:
-                            assistant_data['enabled_tools'] = json.loads(assistant_data['enabled_tools'])
-                        except:
-                            assistant_data['enabled_tools'] = ['create_content','optimize_didactics','critically_review','request_user_feedback','knowledge_lookup']
-                    else:
-                        assistant_data['enabled_tools'] = ['create_content','optimize_didactics','critically_review','request_user_feedback','knowledge_lookup']
-                    
-                    self.assistants[assistant_data['role']] = assistant_data
-                    
-                    # CRITICAL FIX: Supervisor-Assistant-ID für get_or_create_assistant() setzen
-                    if assistant_data['role'] == 'supervisor':
-                        self.supervisor_assistant_id = assistant_data['assistant_id']
-                        self.emit_status(f"✅ Supervisor Assistant gefunden: {self.supervisor_assistant_id}")
-                
-                # Prüfe ob Supervisor gefunden wurde
-                if not hasattr(self, 'supervisor_assistant_id'):
-                    self.emit_error("❌ Kein Supervisor-Assistant (role='supervisor') in der Datenbank gefunden!")
-                    return False
-                
-                self.emit_status(f"✅ {len(assistants)} Assistants aus DB geladen")
-                return True
-                
+            # OpenAI Thread cleanup
+            if self.current_run:
+                try:
+                    self.client.beta.threads.runs.cancel(
+                        thread_id=self.thread.id, 
+                        run_id=self.current_run.id
+                    )
+                except:
+                    pass  # Silent fail für cleanup
+            
+            # Clear references
+            self.thread = None
+            self.current_run = None
+            self.assistants.clear()
+            self.course_content_stages.clear()
+            self.response_callbacks.clear()
+            
+            # SocketIO cleanup
+            if self.socketio and self.session_id:
+                try:
+                    self.socketio.emit('orchestrator_cleanup', {
+                        'message': 'Session bereinigt für Memory-Optimierung'
+                    }, room=f'session_{self.session_id}')
+                except:
+                    pass
+            
+            logger.info(f"🧹 Orchestrator cleanup abgeschlossen für {self.project_id}_{self.session_id}")
+            
         except Exception as e:
-            self.emit_error(f"❌ Fehler beim Laden der Assistants: {e}")
-            return False
+            logger.warning(f"Cleanup error: {e}")
+    
+    def _load_assistants_from_db(self):
+        """Lädt alle aktiven Assistants aus der SQLAlchemy-Datenbank (PostgreSQL/SQLite)."""
+        try:
+            # Lazy import to avoid circular dependency
+            from models import db, Assistant  # noqa: E402
+            
+            assistants = Assistant.query.filter_by(is_active=True).order_by(Assistant.order_index.asc()).all()
+            
+            # Cache assistants
+            for assistant in assistants:
+                assistant_data = {
+                    'id': assistant.id,
+                    'name': assistant.name,
+                    'assistant_id': assistant.assistant_id,
+                    'role': assistant.role,
+                    'description': assistant.description,
+                    'instructions': assistant.instructions,
+                    'model': assistant.model,
+                    'temperature': assistant.temperature,
+                    'top_p': assistant.top_p,
+                    'max_tokens': assistant.max_tokens,
+                    'frequency_penalty': assistant.frequency_penalty,
+                    'presence_penalty': assistant.presence_penalty,
+                    'retry_attempts': assistant.retry_attempts,
+                    'timeout_seconds': assistant.timeout_seconds,
+                    'enabled_tools': json.loads(assistant.enabled_tools) if assistant.enabled_tools else []
+                }
+                self.assistants[assistant.role] = assistant_data
+                
+                # Mark supervisor assistant
+                if assistant.role == 'supervisor':
+                    self.supervisor_assistant_id = assistant.assistant_id
+                    self.emit_status(f"✅ Supervisor Assistant geladen: {self.supervisor_assistant_id}")
+            
+            if not self.assistants:
+                self.emit_status("⚠️ Keine aktiven Assistants in der Datenbank gefunden")
+        except Exception as e:
+            logger.error(f"Assistant-Load-Error: {e}")
+            self.emit_error(f"Assistant-Load-Error: {e}")
     
     def get_or_create_assistant(self):
         """
@@ -114,7 +265,7 @@ class DynamicChatOrchestrator:
             
         try:
             # Supervisor Assistant aus Datenbank laden
-            self.supervisor_assistant = client.beta.assistants.retrieve(self.supervisor_assistant_id)
+            self.supervisor_assistant = self.client.beta.assistants.retrieve(self.supervisor_assistant_id)
             
             # CRITICAL FIX: Stelle sicher, dass Tools konfiguriert sind
             required_tools = self._get_required_tools()
@@ -130,7 +281,7 @@ class DynamicChatOrchestrator:
                 self.emit_status("🔧 Aktualisiere Supervisor (Tools & Instructions)...")
                 
                 # Update Assistant mit korrekten Tools und Instructions
-                self.supervisor_assistant = client.beta.assistants.update(
+                self.supervisor_assistant = self.client.beta.assistants.update(
                     assistant_id=self.supervisor_assistant_id,
                     tools=required_tools,
                     instructions=new_instructions
@@ -366,17 +517,20 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
     def create_thread(self):
         """Erstellt einen neuen Chat-Thread."""
         try:
-            self.thread = client.beta.threads.create()
+            self.thread = self.client.beta.threads.create()
             self.emit_status(f"✅ Chat-Thread erstellt: {self.thread.id}")
             return True
         except Exception as e:
             self.emit_error(f"❌ Thread-Erstellung fehlgeschlagen: {e}")
             return False
     
-    def process_message(self, message, user_id=1):
+    def process_message(self, message: str, user_id: int = 1):
         """
         MAIN METHOD: Verarbeitet User-Nachrichten mit dynamischen DB-Assistants
+        MEMORY OPTIMIZED: Activity-Tracking für TTL-Management
         """
+        self._update_activity()  # Track activity für Memory-Management
+        
         if self.is_processing:
             self.emit_message("⏳ Ein anderer Prozess läuft bereits. Bitte warten Sie einen Moment.", "assistant")
             return
@@ -392,18 +546,18 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
         try:
             # Thread erstellen falls nicht vorhanden
             if not self.thread:
-                self.thread = client.beta.threads.create()
+                self.thread = self.client.beta.threads.create()
                 self.emit_status("✅ Neuer Thread erstellt")
             
             # Nachricht zum Thread hinzufügen
-            client.beta.threads.messages.create(
+            self.client.beta.threads.messages.create(
                 thread_id=self.thread.id,
                 role="user",
                 content=message
             )
             
             # Run starten
-            self.current_run = client.beta.threads.runs.create(
+            self.current_run = self.client.beta.threads.runs.create(
                 thread_id=self.thread.id,
                 assistant_id=self.supervisor_assistant.id
             )
@@ -413,15 +567,19 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
             
         except Exception as e:
             self.emit_error(f"❌ Fehler bei der Nachrichtenverarbeitung: {e}")
+        finally:
             self.is_processing = False
+            self._update_activity()
     
     def force_recovery(self):
         """Erzwingt Recovery bei hängenden Runs mit sofortigem Neustart"""
+        self._update_activity()
+        
         try:
             if self.current_run:
                 self.emit_status("🔄 Stoppe hängenden Run...")
                 try:
-                    client.beta.threads.runs.cancel(thread_id=self.thread.id, run_id=self.current_run.id)
+                    self.client.beta.threads.runs.cancel(thread_id=self.thread.id, run_id=self.current_run.id)
                     self.emit_status("✅ Alter Run erfolgreich gestoppt")
                 except Exception as cancel_error:
                     self.emit_status(f"⚠️ Run-Cancel Fehler (wird ignoriert): {cancel_error}")
@@ -434,7 +592,7 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                 
                 # Neuen Run erstellen
                 try:
-                    self.current_run = client.beta.threads.runs.create(
+                    self.current_run = self.client.beta.threads.runs.create(
                         thread_id=self.thread.id,
                         assistant_id=self.supervisor_assistant.id
                     )
@@ -455,6 +613,7 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
             self.emit_message("System-Recovery fehlgeschlagen. Bitte nutzen Sie 'reset' für einen manuellen Neustart oder senden Sie Ihre Nachricht erneut.", "assistant")
         finally:
             self.is_processing = False
+            self._update_activity()
     
     def _process_message_async(self, message, user_data):
         """Asynchrone Nachrichtenverarbeitung"""
@@ -471,14 +630,14 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                     return
             
             # User-Nachricht zum Thread hinzufügen
-            client.beta.threads.messages.create(
+            self.client.beta.threads.messages.create(
                 thread_id=self.thread.id,
                 role="user",
                 content=message
             )
             
             # Run starten
-            self.current_run = client.beta.threads.runs.create(
+            self.current_run = self.client.beta.threads.runs.create(
                 thread_id=self.thread.id,
                 assistant_id=self.supervisor_assistant.id
             )
@@ -524,7 +683,7 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                         self.emit_error("❌ Verarbeitung wegen Timeout abgebrochen.")
                         return
 
-                run = client.beta.threads.runs.retrieve(
+                run = self.client.beta.threads.runs.retrieve(
                     thread_id=self.thread.id,
                     run_id=self.current_run.id
                 )
@@ -557,7 +716,7 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                 
                 if run.status == "completed":
                     # Run erfolgreich abgeschlossen, finale Antwort abrufen
-                    messages = client.beta.threads.messages.list(
+                    messages = self.client.beta.threads.messages.list(
                         thread_id=self.thread.id,
                         limit=1
                     )
@@ -708,7 +867,7 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
         try:
             self.emit_status(f"📤 Sende {len(tool_outputs)} Tool-Outputs an OpenAI...")
             
-            client.beta.threads.runs.submit_tool_outputs(
+            self.client.beta.threads.runs.submit_tool_outputs(
                 thread_id=self.thread.id,
                 run_id=run.id,
                 tool_outputs=tool_outputs
@@ -761,7 +920,7 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
             })
             
             # Assistant über OpenAI API aufrufen
-            response = client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=assistant_data['model'],
                 messages=[
                     {"role": "system", "content": assistant_data['instructions']},
