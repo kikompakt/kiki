@@ -1,1 +1,1 @@
-web: gunicorn --worker-class gevent --workers 1 --timeout 300 --keep-alive 120 --max-requests 500 --max-requests-jitter 50 --bind 0.0.0.0:8080 app_railway:app 
+web: python -m gunicorn --worker-class=gevent --workers=1 --timeout=300 --keep-alive=120 --max-requests=500 --max-requests-jitter=50 --bind=0.0.0.0:8080 app_railway:app 
