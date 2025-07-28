@@ -143,11 +143,10 @@ class DynamicChatOrchestrator:
     - MEMORY MANAGEMENT: TTL-basiertes Cleanup-System
     """
     
-    def __init__(self, socketio, project_id: Optional[str] = None, session_id: Optional[str] = None, db_path: str = "kursstudio.db"):
+    def __init__(self, socketio, project_id: Optional[str] = None, session_id: Optional[str] = None):
         self.socketio = socketio
         self.project_id = project_id
         self.session_id = session_id
-        self.db_path = db_path
         self.client = get_openai_client()  # Singleton Client verwenden
         self.supervisor_assistant = None
         self.assistants: Dict[str, Dict[str, Any]] = {}  # Cache für alle verfügbaren Assistants

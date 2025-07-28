@@ -191,17 +191,98 @@ Der NEUE 7-Schritte-Workflow:
 
 def init_default_workflows():
     """Create default workflows if they don't exist"""
-    if not Workflow.query.filter_by(name='Standard-Kurs-Erstellung').first():
+    existing_workflow = Workflow.query.filter_by(name='Standard-Kurs-Erstellung').first()
+    
+    if not existing_workflow:
+        # Create new workflow
         workflow = Workflow(
             name='Standard-Kurs-Erstellung',
             description='Professioneller 7-Schritt-Workflow für hochwertige Online-Kurse',
-            workflow_type='course_creation',
+            workflow_type='sequential',  # Fixed: Use frontend-compatible type
             is_active=True,
             is_default=True
         )
         db.session.add(workflow)
-        db.session.commit()
-        logger.info("Default workflow created")
+        db.session.flush()  # Get the workflow ID
+        logger.info("Creating new default workflow")
+    else:
+        # Update existing workflow if needed
+        workflow = existing_workflow
+        if workflow.workflow_type == 'course_creation':
+            workflow.workflow_type = 'sequential'
+            logger.info("Updated workflow type from course_creation to sequential")
+        
+        # Check if workflow has steps
+        existing_steps_count = WorkflowStep.query.filter_by(workflow_id=workflow.id).count()
+        if existing_steps_count > 0:
+            logger.info(f"Default workflow already has {existing_steps_count} steps")
+            db.session.commit()
+            return
+    
+    # Create default workflow steps
+    default_steps = [
+        {
+            'step_name': 'Outline-Erstellung',
+            'agent_role': 'supervisor',
+            'order_index': 1,
+            'input_source': 'user_input',
+            'output_target': 'raw_content'
+        },
+        {
+            'step_name': 'Outline-Qualitätsprüfung', 
+            'agent_role': 'supervisor',
+            'order_index': 2,
+            'input_source': 'raw_content',
+            'output_target': 'optimized_content'
+        },
+        {
+            'step_name': 'Volltext-Erstellung',
+            'agent_role': 'supervisor', 
+            'order_index': 3,
+            'input_source': 'optimized_content',
+            'output_target': 'raw_content'
+        },
+        {
+            'step_name': 'Didaktische Optimierung',
+            'agent_role': 'supervisor',
+            'order_index': 4, 
+            'input_source': 'raw_content',
+            'output_target': 'optimized_content'
+        },
+        {
+            'step_name': 'Finale Qualitätsprüfung',
+            'agent_role': 'supervisor',
+            'order_index': 5,
+            'input_source': 'optimized_content', 
+            'output_target': 'final_content'
+        },
+        {
+            'step_name': 'Finale Freigabe',
+            'agent_role': 'supervisor',
+            'order_index': 6,
+            'input_source': 'final_content',
+            'output_target': 'approved_content'
+        }
+    ]
+    
+    for step_data in default_steps:
+        step = WorkflowStep(
+            workflow_id=workflow.id,
+            step_name=step_data['step_name'],
+            agent_role=step_data['agent_role'],
+            order_index=step_data['order_index'],
+            is_enabled=True,
+            is_parallel=False,
+            retry_attempts=3,
+            timeout_seconds=300,  # Use the corrected timeout
+            execution_condition=None,
+            input_source=step_data['input_source'],
+            output_target=step_data['output_target']
+        )
+        db.session.add(step)
+    
+    db.session.commit()
+    logger.info(f"Default workflow updated with {len(default_steps)} steps")
 
 def cleanup_orchestrators():
     """Clean up old orchestrators to prevent memory leaks"""
@@ -736,8 +817,7 @@ def handle_message(data):
         try:
             orchestrator = DynamicChatOrchestrator(
                 socketio=socketio,
-                session_id=user_id,
-                db_path=app.config.get('SQLALCHEMY_DATABASE_URI', 'kursstudio.db')
+                session_id=user_id
             )
             
             # Store with activity tracking
