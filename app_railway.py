@@ -374,20 +374,25 @@ def admin_assistants():
 @require_admin
 def admin_workflows():
     """Workflow management"""
-    # Query workflows and add step_count as an attribute
-    workflows_raw = db.session.query(
-        Workflow,
-        db.func.count(WorkflowStep.id).label('step_count')
-    ).outerjoin(WorkflowStep).group_by(Workflow.id).all()
-    
-    # Convert tuples to workflow objects with step_count attribute
-    workflows = []
-    for workflow_obj, step_count in workflows_raw:
-        workflow_obj.step_count = step_count
-        workflows.append(workflow_obj)
-    
-    assistants = Assistant.query.filter_by(is_active=True).all()
-    return render_template('admin_workflows.html', workflows=workflows, assistants=assistants)
+    try:
+        # Simplified query - get workflows first, then count steps separately
+        workflows = Workflow.query.all()
+        
+        # Add step_count attribute to each workflow
+        for workflow in workflows:
+            step_count = WorkflowStep.query.filter_by(workflow_id=workflow.id).count()
+            workflow.step_count = step_count
+        
+        assistants = Assistant.query.filter_by(is_active=True).all()
+        
+        logger.info(f"Loaded {len(workflows)} workflows and {len(assistants)} assistants for admin")
+        
+        return render_template('admin_workflows.html', workflows=workflows, assistants=assistants)
+        
+    except Exception as e:
+        logger.error(f"Error loading workflows: {e}")
+        # Return empty data to prevent template errors
+        return render_template('admin_workflows.html', workflows=[], assistants=[])
 
 @app.route('/admin/workflows/help')
 @require_admin
@@ -462,33 +467,47 @@ def api_toggle_assistant(assistant_id):
 def handle_connect():
     """Handle client connection"""
     if 'user_id' not in session:
+        logger.warning("SocketIO connect denied - no user_id in session")
         return False
     
     user_id = session['user_id']
     username = session.get('username', 'Unknown')
     
-    # Join user-specific room so orchestrator can emit directly
-    join_room(f'session_{user_id}')
-    
-    logger.info(f"SocketIO connection: {username} (ID: {user_id}) - joined room session_{user_id}")
-    emit('status', {'message': f'Connected as {username}'})
+    try:
+        # Join user-specific room so orchestrator can emit directly
+        join_room(f'session_{user_id}')
+        
+        logger.info(f"SocketIO connection: {username} (ID: {user_id}) - joined room session_{user_id}")
+        emit('status', {'message': f'Connected as {username}'})
+        
+        # Emit connection success to frontend
+        emit('connection_status', {'connected': True, 'user_id': user_id, 'username': username})
+        
+    except Exception as e:
+        logger.error(f"Error in SocketIO connect for user {user_id}: {e}")
+        return False
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
     user_id = session.get('user_id')
-    if user_id:
-        leave_room(f'session_{user_id}')
-        if user_id in orchestrators:
-            try:
-                del orchestrators[user_id]
-                logger.info(f"Cleaned up orchestrator for disconnected user {user_id}")
-            except Exception as e:
-                logger.error(f"Error cleaning orchestrator for user {user_id}: {e}")
+    username = session.get('username', 'Unknown')
     
-    # Trigger memory cleanup
-    cleanup_orchestrators()
-    logger.info(f"SocketIO disconnection: User {user_id}")
+    if user_id:
+        try:
+            leave_room(f'session_{user_id}')
+            logger.info(f"SocketIO disconnection: {username} (ID: {user_id}) - left room session_{user_id}")
+            
+            if user_id in orchestrators:
+                try:
+                    del orchestrators[user_id]
+                    logger.info(f"Cleaned up orchestrator for disconnected user {user_id}")
+                except Exception as e:
+                    logger.error(f"Error cleaning orchestrator for user {user_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error in SocketIO disconnect for user {user_id}: {e}")
+    else:
+        logger.warning("SocketIO disconnect - no user_id in session")
 
 @socketio.on('send_message')
 def handle_message(data):
