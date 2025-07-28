@@ -14,7 +14,7 @@ from chat_orchestrator import DynamicChatOrchestrator
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
-from models import db, User, Project, Assistant, Workflow, WorkflowStep, ChatSession, ChatMessage
+from models import db, User, Project, Assistant, Workflow, WorkflowStep, ChatSession, ChatMessage, Course, CourseSection
 import time
 import gc
 
@@ -485,8 +485,49 @@ def admin_workflows():
 @app.route('/admin/workflows/help')
 @require_admin
 def admin_workflows_help():
-    """Workflow help page"""
+    """Admin workflow help page"""
     return render_template('admin_workflows_help.html')
+
+@app.route('/courses')
+def courses():
+    """Display user's saved courses"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        user_id = session.get('user_id')
+        courses = Course.query.filter_by(user_id=user_id).order_by(Course.created_at.desc()).all()
+        
+        # Add section counts to courses
+        for course in courses:
+            course.sections_count = CourseSection.query.filter_by(course_id=course.id).count()
+        
+        return render_template('courses.html', courses=courses)
+    except Exception as e:
+        logger.error(f"Error loading courses page: {e}")
+        return redirect(url_for('dashboard'))
+
+@app.route('/courses/<int:course_id>')
+def view_course(course_id):
+    """Display a specific course"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    try:
+        user_id = session.get('user_id')
+        course = Course.query.filter_by(id=course_id, user_id=user_id).first()
+        
+        if not course:
+            flash('Kurs nicht gefunden.', 'error')
+            return redirect(url_for('courses'))
+        
+        # Get course sections
+        sections = CourseSection.query.filter_by(course_id=course.id).order_by(CourseSection.section_order).all()
+        
+        return render_template('course_view.html', course=course, sections=sections)
+    except Exception as e:
+        logger.error(f"Error loading course {course_id}: {e}")
+        return redirect(url_for('courses'))
 
 # Workflow API Routes
 @app.route('/api/workflows', methods=['GET'])
@@ -755,6 +796,156 @@ def api_toggle_assistant(assistant_id):
     db.session.commit()
     
     return jsonify({'success': True, 'is_active': assistant.is_active})
+
+# Course Management API Endpoints
+
+@app.route('/api/courses', methods=['GET'])
+def api_get_courses():
+    """Get all courses for the current user"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+        
+        courses = Course.query.filter_by(user_id=user_id).order_by(Course.created_at.desc()).all()
+        
+        course_list = []
+        for course in courses:
+            # Get sections count
+            sections_count = CourseSection.query.filter_by(course_id=course.id).count()
+            
+            course_data = {
+                'id': course.id,
+                'title': course.title,
+                'description': course.description,
+                'course_topic': course.course_topic,
+                'target_audience': course.target_audience,
+                'estimated_duration': course.estimated_duration,
+                'status': course.status,
+                'quality_score': course.quality_score,
+                'content_length': course.content_length,
+                'sections_count': sections_count,
+                'created_at': course.created_at.isoformat() if course.created_at else None,
+                'updated_at': course.updated_at.isoformat() if course.updated_at else None
+            }
+            course_list.append(course_data)
+        
+        return jsonify(course_list)
+        
+    except Exception as e:
+        logger.error(f"Error fetching courses: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/courses/<int:course_id>', methods=['GET'])
+def api_get_course(course_id):
+    """Get a specific course with full content"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+        
+        course = Course.query.filter_by(id=course_id, user_id=user_id).first()
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        # Get course sections
+        sections = CourseSection.query.filter_by(course_id=course.id).order_by(CourseSection.section_order).all()
+        
+        course_data = {
+            'id': course.id,
+            'title': course.title,
+            'description': course.description,
+            'course_topic': course.course_topic,
+            'target_audience': course.target_audience,
+            'estimated_duration': course.estimated_duration,
+            'full_content': course.full_content,
+            'outline': course.outline,
+            'learning_objectives': course.learning_objectives,
+            'status': course.status,
+            'quality_score': course.quality_score,
+            'content_length': course.content_length,
+            'created_at': course.created_at.isoformat() if course.created_at else None,
+            'updated_at': course.updated_at.isoformat() if course.updated_at else None,
+            'sections': [{
+                'id': section.id,
+                'title': section.section_title,
+                'content': section.section_content,
+                'order': section.section_order,
+                'type': section.section_type,
+                'learning_objectives': section.learning_objectives,
+                'estimated_duration': section.estimated_duration
+            } for section in sections]
+        }
+        
+        return jsonify(course_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching course {course_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/courses/<int:course_id>', methods=['PUT'])
+def api_update_course(course_id):
+    """Update course details"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+        
+        course = Course.query.filter_by(id=course_id, user_id=user_id).first()
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        data = request.get_json()
+        
+        # Update allowed fields
+        if 'title' in data:
+            course.title = data['title']
+        if 'description' in data:
+            course.description = data['description']
+        if 'status' in data:
+            course.status = data['status']
+        if 'target_audience' in data:
+            course.target_audience = data['target_audience']
+        if 'estimated_duration' in data:
+            course.estimated_duration = data['estimated_duration']
+        
+        db.session.commit()
+        logger.info(f"Updated course {course_id}: {course.title}")
+        
+        return jsonify({'success': True, 'message': 'Course updated successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating course {course_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/courses/<int:course_id>', methods=['DELETE'])
+def api_delete_course(course_id):
+    """Delete a course"""
+    try:
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'Not authenticated'}), 401
+        
+        course = Course.query.filter_by(id=course_id, user_id=user_id).first()
+        if not course:
+            return jsonify({'error': 'Course not found'}), 404
+        
+        # Delete course sections first
+        CourseSection.query.filter_by(course_id=course.id).delete()
+        
+        # Delete course
+        db.session.delete(course)
+        db.session.commit()
+        
+        logger.info(f"Deleted course {course_id}: {course.title}")
+        
+        return jsonify({'success': True, 'message': 'Course deleted successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting course {course_id}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # SocketIO Events
 @socketio.on('connect')

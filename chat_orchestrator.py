@@ -782,6 +782,11 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                         # === HIER IST DIE WICHTIGE ÄNDERUNG ZUR DIAGNOSE ===
                         print(f"DEBUG: Sende folgende Antwort an das Frontend: '{response}'")
                         
+                        # CRITICAL NEW FEATURE: Save course content if workflow completed successfully
+                        if self._is_course_creation_complete(response):
+                            logger.info("🎓 Course creation detected as complete, saving to database...")
+                            self._save_course_to_database(response)
+                        
                         self.emit_message(response, "assistant")
                     else:
                         # Dieser Fall wird eintreten, wenn die KI nichts antwortet
@@ -1360,6 +1365,213 @@ Führe ALLE oben genannten Verbesserungen systematisch durch.
 """)
         
         return "\n".join(improvements) if improvements else "✅ Qualität ausreichend - keine Verbesserungen erforderlich."
+
+    def _is_course_creation_complete(self, response: str) -> bool:
+        """Prüft, ob die KI-Antwort ein Indikator für das Abschluss des Kurserstellungsprozesses ist."""
+        # More comprehensive completion indicators
+        completion_indicators = [
+            "Kurs wurde erfolgreich erstellt",
+            "Der Kurs ist jetzt bereit",
+            "Kurserstellung abgeschlossen",
+            "Ihr Kurs ist fertig",
+            "Der komplette Kurs"
+        ]
+        
+        return any(indicator in response for indicator in completion_indicators)
+
+    def _save_course_to_database(self, content: str):
+        """Speichert den erstellten Kursinhalt in der Datenbank."""
+        try:
+            from models import db, Course, CourseSection
+            from flask import current_app
+            import json
+            import re
+            
+            # CRITICAL FIX: Ensure we're in Flask app context
+            with current_app.app_context():
+                
+                # Extract course metadata from content
+                title = self._extract_course_title(content)
+                description = self._extract_course_description(content)
+                topic = self._extract_course_topic(content)
+                
+                logger.info(f"🎓 Saving course: '{title}' for user {self.session_id}")
+                
+                # Create new course record
+                new_course = Course(
+                    user_id=int(self.session_id) if self.session_id else 1,  # Fallback to user 1
+                    project_id=int(self.project_id) if self.project_id and self.project_id != 'default' else None,
+                    title=title,
+                    description=description,
+                    course_topic=topic,
+                    full_content=content,
+                    content_length=len(content),
+                    status='draft'  # Set as draft initially
+                )
+                
+                db.session.add(new_course)
+                db.session.flush()  # Get the course ID
+                
+                # Extract and save course sections if possible
+                sections = self._extract_course_sections(content)
+                for i, section in enumerate(sections):
+                    course_section = CourseSection(
+                        course_id=new_course.id,
+                        section_title=section.get('title', f'Kapitel {i+1}'),
+                        section_content=section.get('content', ''),
+                        section_order=i + 1,
+                        section_type='chapter'
+                    )
+                    db.session.add(course_section)
+                
+                db.session.commit()
+                
+                logger.info(f"✅ Course saved with ID {new_course.id}: '{title}' ({len(sections)} sections)")
+                
+                # Store course ID for follow-up messages
+                self.last_saved_course_id = new_course.id
+                self.last_saved_course_title = title
+                
+                # Send helpful completion message to user
+                completion_message = f"""✅ **Kurs erfolgreich gespeichert!**
+
+**📚 {title}**
+- **Kapitel:** {len(sections)}
+- **Umfang:** {len(content):,} Zeichen
+- **Status:** Entwurf
+
+**🔗 Wo finde ich meinen Kurs?**
+➜ [Zu "Meine Kurse"](/courses) - Alle gespeicherten Kurse
+➜ [Diesen Kurs anzeigen](/courses/{new_course.id}) - Direkt zum Kurs
+
+**📥 Aktionen:**
+- Download als Textdatei
+- In Zwischenablage kopieren
+- Kurs bearbeiten oder veröffentlichen
+
+Ihr Kurs wurde sicher in der Datenbank gespeichert und ist jederzeit abrufbar!"""
+
+                # Emit completion message
+                self.emit_message(completion_message, "assistant")
+                
+                # Emit course completion event to frontend
+                self.emit_workflow_update({
+                    'type': 'course_saved',
+                    'course_id': new_course.id,
+                    'title': title,
+                    'status': 'saved',
+                    'sections_count': len(sections),
+                    'content_length': len(content),
+                    'course_url': f'/courses/{new_course.id}'
+                })
+                
+        except Exception as e:
+            logger.error(f"❌ Error saving course to database: {type(e).__name__}: {str(e)}")
+            self.emit_error(f"❌ Fehler beim Speichern des Kurses: {str(e)}")
+            
+    def _extract_course_title(self, content: str) -> str:
+        """Extract course title from content"""
+        # Look for markdown h1 or common title patterns
+        title_patterns = [
+            r'^#\s+(.+?)$',  # Markdown H1
+            r'^\*\*(.+?)\*\*$',  # Bold title
+            r'^(.+?)\s*(?:Kurs|Course)',  # Text before "Kurs" or "Course"
+        ]
+        
+        lines = content.split('\n')
+        for line in lines[:10]:  # Check first 10 lines
+            line = line.strip()
+            if not line:
+                continue
+            for pattern in title_patterns:
+                match = re.search(pattern, line, re.MULTILINE)
+                if match:
+                    return match.group(1).strip()
+        
+        # Fallback: use first non-empty line or generate title
+        for line in lines[:5]:
+            if line.strip():
+                return line.strip()[:100]  # Max 100 chars
+                
+        return f"KI-Kurs erstellt am {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    
+    def _extract_course_description(self, content: str) -> str:
+        """Extract course description from content"""
+        lines = content.split('\n')
+        description_lines = []
+        
+        # Look for description after title
+        found_title = False
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if not found_title and (line.startswith('#') or line.startswith('**')):
+                found_title = True
+                continue
+            if found_title and len(description_lines) < 3:
+                if not line.startswith('#') and not line.startswith('**'):
+                    description_lines.append(line)
+                else:
+                    break
+        
+        return ' '.join(description_lines)[:500] if description_lines else "KI-generierter Kurs"
+    
+    def _extract_course_topic(self, content: str) -> str:
+        """Extract course topic from content"""
+        # This could be enhanced to extract from the original user input
+        # For now, try to extract from the content
+        if hasattr(self, '_original_topic') and self._original_topic:
+            return self._original_topic
+        
+        # Try to extract from title
+        title = self._extract_course_title(content)
+        if 'AI' in title or 'KI' in title or 'Agent' in title:
+            return 'AI & Machine Learning'
+        elif 'Python' in title or 'Programm' in title:
+            return 'Programming'
+        elif 'Business' in title or 'Marketing' in title:
+            return 'Business'
+        else:
+            return 'Allgemein'
+    
+    def _extract_course_sections(self, content: str) -> list:
+        """Extract course sections from content"""
+        sections = []
+        lines = content.split('\n')
+        current_section = None
+        current_content = []
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Detect section headers (markdown H2, H3, or numbered)
+            if (line.startswith('##') or 
+                re.match(r'^\d+\.', line) or 
+                re.match(r'^[A-Z][^.]*:$', line)):
+                
+                # Save previous section
+                if current_section:
+                    sections.append({
+                        'title': current_section,
+                        'content': '\n'.join(current_content).strip()
+                    })
+                
+                # Start new section
+                current_section = line.replace('#', '').strip()
+                current_content = []
+            else:
+                if current_section and line:
+                    current_content.append(line)
+        
+        # Save last section
+        if current_section:
+            sections.append({
+                'title': current_section,
+                'content': '\n'.join(current_content).strip()
+            })
+        
+        return sections
 
 # Legacy-Kompatibilität für bestehenden Code
 ChatOrchestrator = DynamicChatOrchestrator

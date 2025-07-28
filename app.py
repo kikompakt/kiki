@@ -7,18 +7,23 @@ Architecture:
 - SQLite für User-Management
 - Modulare Struktur für Skalierbarkeit
 - Integration mit bestehenden Agenten-Logiken
+- MEMORY MANAGEMENT: TTL-basierte Orchestrator-Cleanup
+- TYPE SAFETY: Umfassende Type-Hints für Production-Readiness
 """
 
 import os
 import sqlite3
+import json
+import logging
 from datetime import datetime
+from typing import Dict, List, Optional, Any, Union
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-import logging
-import json
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # .env-Datei laden
 load_dotenv()
@@ -688,7 +693,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
     
     # ==================== WORKFLOW MANAGEMENT METHODS ====================
     
-    def get_all_workflows(self):
+    def get_all_workflows(self) -> List[Dict[str, Any]]:
         """Lädt alle Workflows aus der Datenbank"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -702,7 +707,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             ''')
             return [dict(row) for row in cursor.fetchall()]
 
-    def get_workflow_by_id(self, workflow_id):
+    def get_workflow_by_id(self, workflow_id: int) -> Optional[Dict[str, Any]]:
         """Lädt einen Workflow anhand der ID"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -711,7 +716,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             row = cursor.fetchone()
             return dict(row) if row else None
 
-    def get_workflow_steps(self, workflow_id):
+    def get_workflow_steps(self, workflow_id: int) -> List[Dict[str, Any]]:
         """Lädt alle Steps eines Workflows"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -725,7 +730,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             ''', (workflow_id,))
             return [dict(row) for row in cursor.fetchall()]
 
-    def create_workflow(self, name, description="", workflow_type="sequential", is_active=True, is_default=False, trigger_conditions="{}", global_settings="{}"):
+    def create_workflow(self, name: str, description: str = "", workflow_type: str = "sequential", is_active: bool = True, is_default: bool = False, trigger_conditions: str = "{}", global_settings: str = "{}") -> int:
         """Erstellt einen neuen Workflow"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -736,7 +741,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.lastrowid
 
-    def create_workflow_step(self, workflow_id, step_data):
+    def create_workflow_step(self, workflow_id: int, step_data: Dict[str, Any]) -> int:
         """Erstellt einen neuen Workflow-Step"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -768,7 +773,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.lastrowid
 
-    def update_workflow(self, workflow_id, data):
+    def update_workflow(self, workflow_id: int, data: Dict[str, Any]) -> bool:
         """Aktualisiert einen bestehenden Workflow"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -790,7 +795,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def delete_workflow(self, workflow_id):
+    def delete_workflow(self, workflow_id: int) -> bool:
         """Löscht einen Workflow und alle zugehörigen Steps"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -799,7 +804,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def delete_workflow_steps(self, workflow_id):
+    def delete_workflow_steps(self, workflow_id: int) -> bool:
         """Löscht alle Steps eines Workflows"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -807,7 +812,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def toggle_workflow_status(self, workflow_id):
+    def toggle_workflow_status(self, workflow_id: int) -> bool:
         """Schaltet den Active-Status eines Workflows um"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -819,7 +824,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def get_default_workflow(self):
+    def get_default_workflow(self) -> Optional[Dict[str, Any]]:
         """Lädt den Standard-Workflow"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -828,7 +833,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             row = cursor.fetchone()
             return dict(row) if row else None
     
-    def get_user_by_username(self, username):
+    def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         """Lädt User anhand des Usernamens"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -839,7 +844,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
                 return self._convert_user_timestamps(user)
         return None
     
-    def get_user_by_id(self, user_id):
+    def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Lädt User anhand der ID"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -850,7 +855,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
                 return self._convert_user_timestamps(user)
             return None
     
-    def _convert_user_timestamps(self, user_row):
+    def _convert_user_timestamps(self, user_row: sqlite3.Row) -> Dict[str, Any]:
         """Konvertiert SQLite TIMESTAMP Strings zu datetime Objekten"""
         user_dict = dict(user_row)
         
@@ -874,7 +879,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
                 
         return user_dict
     
-    def update_last_login(self, user_id):
+    def update_last_login(self, user_id: int):
         """Aktualisiert den letzten Login-Zeitpunkt"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -884,7 +889,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             ''', (user_id,))
             conn.commit()
     
-    def create_project(self, user_id, title, description=""):
+    def create_project(self, user_id: int, title: str, description: str = "") -> int:
         """Erstellt ein neues Projekt"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -895,7 +900,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.lastrowid
     
-    def get_user_projects(self, user_id):
+    def get_user_projects(self, user_id: int) -> List[sqlite3.Row]:
         """Lädt alle Projekte eines Users"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -906,7 +911,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             ''', (user_id,))
             return cursor.fetchall()
 
-    def get_all_assistants(self):
+    def get_all_assistants(self) -> List[Dict[str, Any]]:
         """Lädt alle Assistants aus der Datenbank"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -914,7 +919,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             cursor.execute('SELECT * FROM assistants ORDER BY order_index ASC')
             return [dict(row) for row in cursor.fetchall()]
 
-    def get_assistant_by_id(self, assistant_id):
+    def get_assistant_by_id(self, assistant_id: int) -> Optional[Dict[str, Any]]:
         """Lädt einen Assistant anhand der ID"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -923,17 +928,17 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             row = cursor.fetchone()
             return dict(row) if row else None
 
-    def create_assistant(self, name, assistant_id, role, description="", instructions="", model="gpt-4o", order_index=1, is_active=True,
+    def create_assistant(self, name: str, assistant_id: str, role: str, description: str = "", instructions: str = "", model: str = "gpt-4o", order_index: int = 1, is_active: bool = True,
                         # Advanced Behavior Parameters
-                        temperature=0.7, top_p=1.0, max_tokens=2000, frequency_penalty=0.0, presence_penalty=0.0,
+                        temperature: float = 0.7, top_p: float = 1.0, max_tokens: int = 2000, frequency_penalty: float = 0.0, presence_penalty: float = 0.0,
                         # Workflow Settings  
-                        retry_attempts=3, timeout_seconds=180, error_handling="graceful",
+                        retry_attempts: int = 3, timeout_seconds: int = 180, error_handling: str = "graceful",
                         # Performance Settings
-                        response_limit=30, context_window=128000,
+                        response_limit: int = 30, context_window: int = 128000,
                         # Behavior Presets
-                        behavior_preset="balanced", custom_system_message=None,
+                        behavior_preset: str = "balanced", custom_system_message: Optional[str] = None,
                         # Tool Configuration
-                        enabled_tools=None):
+                        enabled_tools: Optional[Union[List[str], str]] = None) -> int:
         """Erstellt einen neuen Assistant mit erweiterten Behavior-Parametern"""
         if enabled_tools is None:
             enabled_tools = '["create_content","optimize_didactics","critically_review","request_user_feedback","knowledge_lookup"]'
@@ -957,17 +962,17 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.lastrowid
 
-    def update_assistant(self, id, name, assistant_id_field, role, description="", instructions="", model="gpt-4o", order_index=1, is_active=True,
+    def update_assistant(self, id: int, name: str, assistant_id_field: str, role: str, description: str = "", instructions: str = "", model: str = "gpt-4o", order_index: int = 1, is_active: bool = True,
                         # Advanced Behavior Parameters
-                        temperature=0.7, top_p=1.0, max_tokens=2000, frequency_penalty=0.0, presence_penalty=0.0,
+                        temperature: float = 0.7, top_p: float = 1.0, max_tokens: int = 2000, frequency_penalty: float = 0.0, presence_penalty: float = 0.0,
                         # Workflow Settings  
-                        retry_attempts=3, timeout_seconds=180, error_handling="graceful",
+                        retry_attempts: int = 3, timeout_seconds: int = 180, error_handling: str = "graceful",
                         # Performance Settings
-                        response_limit=30, context_window=128000,
+                        response_limit: int = 30, context_window: int = 128000,
                         # Behavior Presets
-                        behavior_preset="balanced", custom_system_message=None,
+                        behavior_preset: str = "balanced", custom_system_message: Optional[str] = None,
                         # Tool Configuration
-                        enabled_tools=None):
+                        enabled_tools: Optional[Union[List[str], str]] = None) -> bool:
         """Aktualisiert einen bestehenden Assistant mit erweiterten Behavior-Parametern"""
         if enabled_tools is None:
             enabled_tools = '["create_content","optimize_didactics","critically_review","request_user_feedback","knowledge_lookup"]'
@@ -990,7 +995,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def toggle_assistant_status(self, assistant_id):
+    def toggle_assistant_status(self, assistant_id: int) -> bool:
         """Schaltet den Active-Status eines Assistants um"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -1002,7 +1007,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def delete_assistant(self, assistant_id):
+    def delete_assistant(self, assistant_id: int) -> bool:
         """Löscht einen Assistant"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -1010,7 +1015,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.rowcount > 0
 
-    def create_chat_session(self, user_id, project_id=None, title=None):
+    def create_chat_session(self, user_id: int, project_id: Optional[int] = None, title: Optional[str] = None) -> int:
         """Erstellt einen neuen Chat-Thread für einen User"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -1021,7 +1026,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             conn.commit()
             return cursor.lastrowid
     
-    def get_user_chat_sessions(self, user_id):
+    def get_user_chat_sessions(self, user_id: int) -> List[sqlite3.Row]:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -1031,7 +1036,7 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
             ''', (user_id,))
             return cursor.fetchall()
     
-    def clean_old_chat_sessions(self, retention_days=14):
+    def clean_old_chat_sessions(self, retention_days: int = 14):
         """Löscht Chat-Sessions & Messages, die älter als retention_days sind"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -1047,6 +1052,47 @@ Dein Output muss ein valides JSON-Objekt sein. Gib keinen Text davor oder danach
 
 # Database Manager initialisieren
 db = DatabaseManager(app.config['DATABASE'])
+
+# Scheduler für automatische Löschung alter Chats und Memory-Management
+scheduler = BackgroundScheduler()
+
+RETENTION_DAYS = int(os.environ.get('RETENTION_DAYS', 14))
+
+def _schedule_chat_cleanup():
+    """Bereinigt alte Chat-Sessions basierend auf Retention-Policy"""
+    logger.info(f"Running chat cleanup job (retention {RETENTION_DAYS} days)...")
+    try:
+        db.clean_old_chat_sessions(retention_days=RETENTION_DAYS)
+        logger.info("✅ Chat cleanup completed")
+    except Exception as e:
+        logger.error(f"❌ Chat cleanup error: {e}")
+
+def _schedule_memory_cleanup():
+    """Bereinigt inaktive Orchestrators für Memory-Optimierung"""
+    try:
+        from chat_orchestrator import cleanup_inactive_orchestrators
+        cleanup_inactive_orchestrators()
+    except Exception as e:
+        logger.error(f"❌ Memory cleanup error: {e}")
+
+# Database-Initialisierung und Scheduler-Start
+def init_database():
+    """Initialisiert Datenbank und startet Background-Services"""
+    logger.info("Initializing database and background services...")
+    
+    # Database bereits durch DatabaseManager.__init__ initialisiert
+    
+    # Schedule Chat cleanup (täglich)
+    scheduler.add_job(_schedule_chat_cleanup, 'interval', days=1, next_run_time=datetime.now())
+    
+    # Schedule Memory cleanup (alle 10 Minuten)
+    scheduler.add_job(_schedule_memory_cleanup, 'interval', minutes=10, next_run_time=datetime.now())
+    
+    scheduler.start()
+    logger.info("✅ Database und Scheduler initialisiert")
+
+# Initialisierung beim Import (für Gunicorn/Railway)
+init_database()
 
 # Session-Management Hilfsfunktionen
 def login_required(f):
@@ -1409,31 +1455,34 @@ def new_project():
     return redirect(url_for('chat', project_id=project_id))
 
 @app.route('/upload-file', methods=['POST'])
-def upload_file():
-    """Datei-Upload für Wissensbasis"""
+def upload_file() -> Union[str, tuple]:
+    """
+    Datei-Upload für Wissensbasis mit verbesserter Validation
+    
+    Returns:
+        JSON response mit Upload-Status
+    """
     try:
         project_id = request.form.get('project_id')
         if not project_id:
             return jsonify({'success': False, 'error': 'Projekt-ID erforderlich'}), 400
         
-        # Validierung der project_id (numerisch oder demo format)
-        if not (project_id.isdigit() or (project_id.startswith('demo_') and project_id[5:].isdigit())):
+        # IMPROVED VALIDATION: Robustere project_id Validierung
+        if not (project_id.isdigit() or (project_id.startswith('demo_') and len(project_id) > 5 and project_id[5:].isdigit())):
             return jsonify({'success': False, 'error': 'Ungültige Projekt-ID - muss numerisch oder Demo-Format sein'}), 400
         
-        # MVP: Skip project permission check für Demo-Projekte
-        # Echte Projekte würden hier validiert werden
-        
-        # File upload handling
+        # File upload handling mit besserer Validation
         if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'Keine Datei ausgewählt'})
+            return jsonify({'success': False, 'error': 'Keine Datei ausgewählt'}), 400
         
         file = request.files['file']
         if file.filename == '':
-            return jsonify({'success': False, 'error': 'Keine Datei ausgewählt'})
+            return jsonify({'success': False, 'error': 'Keine Datei ausgewählt'}), 400
         
-        # Secure filename
-        from werkzeug.utils import secure_filename
+        # SECURITY: Secure filename mit zusätzlicher Validation
         filename = secure_filename(file.filename)
+        if not filename:
+            return jsonify({'success': False, 'error': 'Ungültiger Dateiname'}), 400
         
         # Save file to upload directory
         upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -1470,18 +1519,26 @@ def upload_file():
             })
         else:
             logger.error(f"File processing failed: {result['error']}")
-            return jsonify({'success': False, 'error': result['error']})
+            return jsonify({'success': False, 'error': result['error']}), 500
             
     except Exception as e:
         logger.error(f"File upload error: {e}")
-        return jsonify({'success': False, 'error': f'Upload-Fehler: {str(e)}'})
+        return jsonify({'success': False, 'error': f'Upload-Fehler: {str(e)}'}), 500
 
 @app.route('/knowledge-summary/<int:project_id>')
 @login_required
-def knowledge_summary(project_id):
-    """API: Wissensbasis-Übersicht für ein Projekt"""
+def knowledge_summary(project_id: int) -> Union[str, tuple]:
+    """
+    API: Wissensbasis-Übersicht für ein Projekt mit Type Safety
+    
+    Args:
+        project_id: Numerische Projekt-ID
+        
+    Returns:
+        JSON response mit Wissensbasis-Daten
+    """
     try:
-        # Prüfe Projekt-Berechtigung
+        # SECURITY: Prüfe Projekt-Berechtigung mit parameterized query
         with sqlite3.connect(app.config['DATABASE']) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -1599,23 +1656,14 @@ def handle_user_message(data):
         'type': 'user'
     }, room=f'session_{session_id}')
     
-    # KI-Orchestrator initialisieren und Nachricht verarbeiten (MVP: Auth-Bypass)
-    from chat_orchestrator import DynamicChatOrchestrator, active_orchestrators
+    # MEMORY OPTIMIZED: Verwende Factory-Function für Orchestrator-Management
+    from chat_orchestrator import get_or_create_orchestrator
     
-    orchestrator_key = f"{mock_user['id']}_{session_id}"
-    
-    if orchestrator_key not in active_orchestrators:
-        # Neuen Orchestrator für diesen User/Project erstellen
-        orchestrator = DynamicChatOrchestrator(
-            socketio, 
-            project_id=project_id, 
-            session_id=session_id, 
-            db_path=app.config['DATABASE']
-        )
-        active_orchestrators[orchestrator_key] = orchestrator
-        logger.info(f"New orchestrator created for MVP user {mock_user['id']}, session {session_id}")
-    else:
-        orchestrator = active_orchestrators[orchestrator_key]
+    orchestrator = get_or_create_orchestrator(
+        project_id=str(project_id),
+        session_id=str(session_id),
+        socketio=socketio
+    )
     
     # MVP: Mock User-Daten für Kontext
     user_data = {
@@ -1628,19 +1676,6 @@ def handle_user_message(data):
     orchestrator.process_message(message, user_data)
     
     logger.info(f"Message from {mock_user['username']} processed by orchestrator: {message[:50]}...")
-
-# Scheduler für automatische Löschung alter Chats
-from apscheduler.schedulers.background import BackgroundScheduler
-scheduler = BackgroundScheduler()
-
-RETENTION_DAYS = int(os.environ.get('RETENTION_DAYS', 14))
-
-def _schedule_chat_cleanup():
-    logger.info(f"Running chat cleanup job (retention {RETENTION_DAYS} days)...")
-    db.clean_old_chat_sessions(retention_days=RETENTION_DAYS)
-
-scheduler.add_job(_schedule_chat_cleanup, 'interval', days=1, next_run_time=datetime.now())
-scheduler.start()
 
 if __name__ == '__main__':
     logger.info("Starting Intelligentes KI-Kursstudio...")

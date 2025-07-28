@@ -8,20 +8,21 @@ Features:
 - Sentence-Transformers für Embeddings (Open Source)
 - ChromaDB für lokale Vector Storage
 - Semantic Search und Context-Retrieval
+- TYPE SAFETY: Umfassende Type-Hints für bessere Code-Qualität
 """
 
 import os
 import sqlite3
 import hashlib
-from typing import List, Dict, Any, Optional, Tuple
-from pathlib import Path
 import logging
+from typing import List, Dict, Any, Optional, Tuple, Set
+from pathlib import Path
 from datetime import datetime
+from io import BytesIO
 
 # File Processing
 import PyPDF2
 import docx
-from io import BytesIO
 
 # RAG Components
 import chromadb
@@ -46,24 +47,24 @@ class KnowledgeManager:
     5. Semantic Search → Context Retrieval
     """
     
-    def __init__(self, db_path="kursstudio.db", vector_db_path="./chroma_db"):
+    def __init__(self, db_path: str = "kursstudio.db", vector_db_path: str = "./chroma_db"):
         self.db_path = db_path
         self.vector_db_path = vector_db_path
-        self.embedding_model = None
-        self.chroma_client = None
-        self.collections = {}
+        self.embedding_model: Optional[SentenceTransformer] = None
+        self.chroma_client: Optional[chromadb.PersistentClient] = None
+        self.collections: Dict[str, Any] = {}
         
         # Supported file types
-        self.supported_extensions = {'.pdf', '.txt', '.docx'}
-        self.max_file_size = 16 * 1024 * 1024  # 16MB
+        self.supported_extensions: Set[str] = {'.pdf', '.txt', '.docx'}
+        self.max_file_size: int = 16 * 1024 * 1024  # 16MB
         
         # Chunking parameters
-        self.chunk_size = 1000  # Characters per chunk
-        self.chunk_overlap = 200  # Overlap between chunks
+        self.chunk_size: int = 1000  # Characters per chunk
+        self.chunk_overlap: int = 200  # Overlap between chunks
         
         self.initialize_systems()
     
-    def initialize_systems(self):
+    def initialize_systems(self) -> bool:
         """Initialisiert Embedding-Model und Vector-Datenbank"""
         try:
             # Sentence-Transformer laden (Open Source)
@@ -232,7 +233,7 @@ class KnowledgeManager:
     # Internal Processing Methods
     
     def _validate_file(self, file_path: str, filename: str) -> bool:
-        """Validiert Datei-Upload"""
+        """Validiert Datei-Upload mit robuster Type-Safety"""
         try:
             # Check file exists
             if not os.path.exists(file_path):
@@ -258,7 +259,16 @@ class KnowledgeManager:
             return False
     
     def _extract_text(self, file_path: str, filename: str) -> str:
-        """Extrahiert Text aus verschiedenen Dateiformaten"""
+        """
+        Extrahiert Text aus verschiedenen Dateiformaten mit Type-Safety
+        
+        Args:
+            file_path: Vollständiger Pfad zur Datei
+            filename: Original-Dateiname für Extension-Detection
+            
+        Returns:
+            Extrahierter Text als String
+        """
         try:
             ext = Path(filename).suffix.lower()
             
@@ -277,35 +287,42 @@ class KnowledgeManager:
             return ""
     
     def _extract_from_txt(self, file_path: str) -> str:
-        """Extrahiert Text aus TXT-Datei"""
+        """Extrahiert Text aus TXT-Datei mit Encoding-Fallback"""
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
                 return file.read()
         except UnicodeDecodeError:
             # Fallback encoding
-            with open(file_path, 'r', encoding='latin-1') as file:
-                return file.read()
+            try:
+                with open(file_path, 'r', encoding='latin-1') as file:
+                    return file.read()
+            except Exception as e:
+                logger.error(f"TXT extraction fallback failed: {e}")
+                return ""
     
     def _extract_from_pdf(self, file_path: str) -> str:
-        """Extrahiert Text aus PDF-Datei"""
+        """Extrahiert Text aus PDF-Datei mit robuster Error-Handling"""
         try:
             text = ""
             with open(file_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 for page in pdf_reader.pages:
-                    text += page.extract_text() + "\n"
+                    page_text = page.extract_text()
+                    if page_text:  # Skip empty pages
+                        text += page_text + "\n"
             return text
         except Exception as e:
             logger.error(f"PDF extraction error: {e}")
             return ""
     
     def _extract_from_docx(self, file_path: str) -> str:
-        """Extrahiert Text aus DOCX-Datei"""
+        """Extrahiert Text aus DOCX-Datei mit Paragraph-Handling"""
         try:
             doc = docx.Document(file_path)
             text = ""
             for paragraph in doc.paragraphs:
-                text += paragraph.text + "\n"
+                if paragraph.text.strip():  # Skip empty paragraphs
+                    text += paragraph.text + "\n"
             return text
         except Exception as e:
             logger.error(f"DOCX extraction error: {e}")

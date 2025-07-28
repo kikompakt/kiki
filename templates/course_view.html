@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}{{ course.title }} - KI Kursstudio{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/courses">Meine Kurse</a></li>
+                            <li class="breadcrumb-item active">{{ course.title }}</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h3">{{ course.title }}</h1>
+                </div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-primary" onclick="downloadCourse()">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="copyToClipboard()">
+                        <i class="fas fa-copy"></i> Kopieren
+                    </button>
+                </div>
+            </div>
+
+            <!-- Course Metadata -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5>Kursbeschreibung</h5>
+                            <p>{{ course.description or 'Keine Beschreibung verfügbar' }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Kursdetails</h6>
+                            <ul class="list-unstyled">
+                                {% if course.course_topic %}
+                                <li><strong>Thema:</strong> {{ course.course_topic }}</li>
+                                {% endif %}
+                                {% if course.target_audience %}
+                                <li><strong>Zielgruppe:</strong> {{ course.target_audience }}</li>
+                                {% endif %}
+                                {% if course.estimated_duration %}
+                                <li><strong>Dauer:</strong> {{ course.estimated_duration }}</li>
+                                {% endif %}
+                                {% if sections %}
+                                <li><strong>Kapitel:</strong> {{ sections|length }}</li>
+                                {% endif %}
+                                <li><strong>Status:</strong> 
+                                    {% if course.status == 'published' %}
+                                    <span class="badge badge-success">{{ course.status.title() }}</span>
+                                    {% elif course.status == 'draft' %}
+                                    <span class="badge badge-warning">{{ course.status.title() }}</span>
+                                    {% else %}
+                                    <span class="badge badge-secondary">{{ course.status.title() }}</span>
+                                    {% endif %}
+                                </li>
+                                <li><strong>Erstellt:</strong> {{ course.created_at.strftime('%d.%m.%Y um %H:%M') if course.created_at else 'Unbekannt' }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Course Content -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Kursinhalt</h5>
+                </div>
+                <div class="card-body">
+                    {% if course.full_content %}
+                    <div id="courseContent" class="course-content">
+                        {{ course.full_content | nl2br | safe }}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-file-text" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Kein Kursinhalt verfügbar</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Course Sections (if available) -->
+            {% if sections %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Kursstruktur</h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="sectionsAccordion">
+                        {% for section in sections %}
+                        <div class="card">
+                            <div class="card-header" id="heading{{ section.id }}">
+                                <h6 class="mb-0">
+                                    <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#collapse{{ section.id }}" aria-expanded="false" aria-controls="collapse{{ section.id }}">
+                                        {{ section.order }}. {{ section.section_title }}
+                                    </button>
+                                </h6>
+                            </div>
+                            <div id="collapse{{ section.id }}" class="collapse" aria-labelledby="heading{{ section.id }}" data-parent="#sectionsAccordion">
+                                <div class="card-body">
+                                    {% if section.section_content %}
+                                    {{ section.section_content | nl2br | safe }}
+                                    {% else %}
+                                    <p class="text-muted">Kein Inhalt für dieses Kapitel verfügbar</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.course-content {
+    line-height: 1.6;
+    font-size: 1.1rem;
+}
+
+.course-content h1, .course-content h2, .course-content h3 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.course-content p {
+    margin-bottom: 1rem;
+}
+
+.course-content ul, .course-content ol {
+    margin-bottom: 1rem;
+    padding-left: 2rem;
+}
+</style>
+
+<script>
+function downloadCourse() {
+    const content = document.getElementById('courseContent').innerText || 'Kein Inhalt verfügbar';
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '{{ course.title }}.txt';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+function copyToClipboard() {
+    const content = document.getElementById('courseContent').innerText || 'Kein Inhalt verfügbar';
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(content).then(function() {
+            alert('Kursinhalt wurde in die Zwischenablage kopiert!');
+        }).catch(function(err) {
+            console.error('Clipboard error:', err);
+            fallbackCopyToClipboard(content);
+        });
+    } else {
+        fallbackCopyToClipboard(content);
+    }
+}
+
+function fallbackCopyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        alert('Kursinhalt wurde in die Zwischenablage kopiert!');
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        alert('Kopieren fehlgeschlagen. Bitte manuell markieren und kopieren.');
+    }
+    document.body.removeChild(textArea);
+}
+</script>
+{% endblock %} 

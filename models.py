@@ -146,4 +146,50 @@ class WorkflowExecution(db.Model):
     error_message = db.Column(db.Text)
     started_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime)
-    execution_time_seconds = db.Column(db.Integer) 
+    execution_time_seconds = db.Column(db.Integer)
+
+class Course(db.Model):
+    __tablename__ = 'courses'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id'))
+    workflow_execution_id = db.Column(db.Integer, db.ForeignKey('workflow_executions.id'))
+    
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    course_topic = db.Column(db.String(200))
+    target_audience = db.Column(db.String(200))
+    estimated_duration = db.Column(db.String(100))
+    
+    # Course content
+    full_content = db.Column(db.Text)  # Complete course text
+    outline = db.Column(db.Text)       # Course outline/structure
+    learning_objectives = db.Column(db.Text)  # JSON list of objectives
+    
+    # Status and metadata
+    status = db.Column(db.String(20), default='draft')  # draft, published, archived
+    quality_score = db.Column(db.Float)
+    content_length = db.Column(db.Integer)  # Character count
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    published_at = db.Column(db.DateTime)
+
+class CourseSection(db.Model):
+    __tablename__ = 'course_sections'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    
+    section_title = db.Column(db.String(200), nullable=False)
+    section_content = db.Column(db.Text)
+    section_order = db.Column(db.Integer, nullable=False)
+    section_type = db.Column(db.String(50), default='chapter')  # chapter, exercise, summary
+    
+    learning_objectives = db.Column(db.Text)  # JSON list for this section
+    estimated_duration = db.Column(db.String(50))
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) 

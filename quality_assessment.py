@@ -1,20 +1,22 @@
 """
-Quality Assessment Module für Multi-Agenten-Kursgenerator
-Implementiert messbare Qualitätsmetriken für automatisierte Kursbewertung
+Quality Assessment für Intelligentes KI-Kursstudio
+Automatisierte Bewertung von Kursinhalten mit datengestützten Metriken
 
-MVP Features (Ebene 1):
-- Lesbarkeitsindex (Flesch-Reading-Ease für Deutsch)
-- Strukturelle Qualität (Lernziele, Beispiele, Gliederung)
-- Terminologie-Konsistenz 
-- Kombinierter Qualitäts-Score
+Features:
+- Strukturbewertung (Lernziele, Beispiele, Hierarchie)
+- Didaktikbewertung (Verständlichkeit, Progression) 
+- Konsistenzbewertung (Terminologie, Logik)
+- Qualitäts-Gates für Production-Freigabe
+- TYPE SAFETY: Umfassende Type-Hints für bessere Code-Qualität
 """
 
 import re
-import math
-from typing import Dict, List, Tuple, Any
+import logging
+from typing import Dict, List, Any, Tuple, Optional, Set
 from collections import Counter
-import json
+import statistics
 
+logger = logging.getLogger(__name__)
 
 class QualityAssessment:
     """
@@ -469,7 +471,7 @@ class QualityAssessment:
         
         return priorities[:3]  # Max 3 Prioritäten
 
-    def assess_content(self, content: str) -> Dict[str, Any]:
+    def assess(self, content: str) -> Dict[str, Any]:
         """
         Wrapper method für Test-Integration - verwendet overall_quality_score
         
@@ -486,16 +488,39 @@ class QualityAssessment:
 
 def assess_course_quality(content: str) -> Dict[str, Any]:
     """
-    Convenience function für Integration in bestehenden Workflow
+    Hauptfunktion für automatisierte Kursbewertung
     
     Args:
-        content: Kursinhalt als String
+        content: Der zu bewertende Kursinhalt
         
     Returns:
-        Vollständige Qualitätsbewertung
+        Dictionary mit Bewertungsresultaten und Metriken
     """
-    assessor = QualityAssessment()
-    return assessor.overall_quality_score(content)
+    try:
+        if not content or not content.strip():
+            return _create_empty_assessment()
+        
+        quality_assessment = QualityAssessment()
+        return quality_assessment.assess(content)
+        
+    except Exception as e:
+        logger.error(f"Quality assessment error: {e}")
+        return _create_empty_assessment()
+
+def _create_empty_assessment() -> Dict[str, Any]:
+    """Erstellt leere Assessment-Struktur für Error-Cases"""
+    return {
+        'overall_score': 0.0,
+        'quality_level': 'UNASSESSABLE',
+        'ready_for_review': False,
+        'threshold': 7.0,
+        'component_scores': {
+            'readability': {'score': 0, 'level': 'POOR'},
+            'structure': {'score': 0, 'level': 'POOR', 'details': {}, 'recommendations': []},
+            'consistency': {'score': 0, 'level': 'POOR', 'issues': []}
+        },
+        'improvement_priority': []
+    }
 
 
 if __name__ == "__main__":
