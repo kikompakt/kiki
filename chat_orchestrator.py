@@ -219,41 +219,76 @@ class DynamicChatOrchestrator:
         try:
             # Lazy import to avoid circular dependency
             from models import db, Assistant  # noqa: E402
+            from flask import current_app
             
-            assistants = Assistant.query.filter_by(is_active=True).order_by(Assistant.order_index.asc()).all()
-            
-            # Cache assistants
-            for assistant in assistants:
-                assistant_data = {
-                    'id': assistant.id,
-                    'name': assistant.name,
-                    'assistant_id': assistant.assistant_id,
-                    'role': assistant.role,
-                    'description': assistant.description,
-                    'instructions': assistant.instructions,
-                    'model': assistant.model,
-                    'temperature': assistant.temperature,
-                    'top_p': assistant.top_p,
-                    'max_tokens': assistant.max_tokens,
-                    'frequency_penalty': assistant.frequency_penalty,
-                    'presence_penalty': assistant.presence_penalty,
-                    'retry_attempts': assistant.retry_attempts,
-                    'timeout_seconds': assistant.timeout_seconds,
-                    'enabled_tools': json.loads(assistant.enabled_tools) if assistant.enabled_tools else []
-                }
-                self.assistants[assistant.role] = assistant_data
+            # CRITICAL FIX: Ensure we're in Flask app context
+            with current_app.app_context():
+                assistants = Assistant.query.filter_by(is_active=True).order_by(Assistant.order_index.asc()).all()
                 
-                # Mark supervisor assistant
-                if assistant.role == 'supervisor':
-                    self.supervisor_assistant_id = assistant.assistant_id
-                    self.emit_status(f"✅ Supervisor Assistant geladen: {self.supervisor_assistant_id}")
-            
-            if not self.assistants:
-                self.emit_status("⚠️ Keine aktiven Assistants in der Datenbank gefunden")
+                # Cache assistants
+                for assistant in assistants:
+                    assistant_data = {
+                        'id': assistant.id,
+                        'name': assistant.name,
+                        'assistant_id': assistant.assistant_id,
+                        'role': assistant.role,
+                        'description': assistant.description,
+                        'instructions': assistant.instructions,
+                        'model': assistant.model,
+                        'temperature': assistant.temperature,
+                        'top_p': assistant.top_p,
+                        'max_tokens': assistant.max_tokens,
+                        'frequency_penalty': assistant.frequency_penalty,
+                        'presence_penalty': assistant.presence_penalty,
+                        'retry_attempts': assistant.retry_attempts,
+                        'timeout_seconds': assistant.timeout_seconds,
+                        'enabled_tools': json.loads(assistant.enabled_tools) if assistant.enabled_tools else []
+                    }
+                    self.assistants[assistant.role] = assistant_data
+                    
+                    # Mark supervisor assistant
+                    if assistant.role == 'supervisor':
+                        self.supervisor_assistant_id = assistant.assistant_id
+                        self.emit_status(f"✅ Supervisor Assistant geladen: {self.supervisor_assistant_id}")
+                
+                if not self.assistants:
+                    self.emit_status("⚠️ Keine aktiven Assistants in der Datenbank gefunden")
+                    
         except Exception as e:
             logger.error(f"Assistant-Load-Error: {e}")
             self.emit_error(f"Assistant-Load-Error: {e}")
+            # FALLBACK: Create a basic supervisor assistant if DB fails
+            self._create_fallback_supervisor()
     
+    def _create_fallback_supervisor(self):
+        """Creates a fallback supervisor assistant when database is not available"""
+        logger.info("🔄 Creating fallback supervisor assistant (no database access)")
+        
+        # Create basic supervisor assistant data
+        fallback_supervisor = {
+            'id': 1,
+            'name': 'Fallback Supervisor',
+            'assistant_id': 'asst_19FlW2QtTAIb7Z96f3ukfSre',  # Use default from config
+            'role': 'supervisor',
+            'description': 'Fallback Supervisor für lokale Entwicklung',
+            'instructions': 'Du bist ein freundlicher und hilfreicher KI-Assistant.',
+            'model': 'gpt-4o',
+            'temperature': 0.7,
+            'top_p': 1.0,
+            'max_tokens': 2000,
+            'frequency_penalty': 0.0,
+            'presence_penalty': 0.0,
+            'retry_attempts': 3,
+            'timeout_seconds': 300,
+            'enabled_tools': ['create_content','optimize_didactics','critically_review','request_user_feedback','knowledge_lookup']
+        }
+        
+        self.assistants['supervisor'] = fallback_supervisor
+        self.supervisor_assistant_id = fallback_supervisor['assistant_id']
+        
+        logger.info(f"✅ Fallback supervisor created: {self.supervisor_assistant_id}")
+        self.emit_status(f"✅ Fallback Supervisor Assistant geladen: {self.supervisor_assistant_id}")
+
     def get_or_create_assistant(self):
         """
         NEUE DYNAMISCHE VERSION: Verwendet Supervisor aus Datenbank mit Tool-Setup

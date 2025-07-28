@@ -803,6 +803,13 @@ def handle_disconnect():
     else:
         logger.warning("SocketIO disconnect - no user_id in session")
 
+# COMPATIBILITY: Support both event names from frontend
+@socketio.on('user_message')
+def handle_user_message_compat(data):
+    """Handle user_message event (compatibility with app.py frontend)"""
+    logger.info("📨 RECEIVED user_message event (compatibility mode)")
+    return handle_message(data)
+
 @socketio.on('send_message')
 def handle_message(data):
     """Handle chat message from user"""
@@ -822,55 +829,57 @@ def handle_message(data):
         logger.warning(f"❌ Empty message from user {user_id}")
         return
     
-    # Cleanup old orchestrators before creating new ones
-    cleanup_orchestrators()
-    
-    # Get or create orchestrator for this user with activity tracking
-    if user_id not in orchestrators:
-        try:
-            logger.info(f"🤖 Creating new orchestrator for user {user_id}")
-            orchestrator = DynamicChatOrchestrator(
-                socketio=socketio,
-                session_id=user_id
-            )
-            
-            # Store with activity tracking
-            orchestrators[user_id] = {
-                'orchestrator': orchestrator,
-                'last_activity': time.time()
-            }
-            
-            logger.info(f"✅ Created new orchestrator for user {user_id}")
-        except Exception as e:
-            logger.error(f"❌ Error creating orchestrator for user {user_id}: {e}")
-            emit('error', {'message': 'Failed to initialize chat system'})
-            return
-    else:
-        logger.info(f"🔄 Using existing orchestrator for user {user_id}")
-        # Update activity timestamp
-        if isinstance(orchestrators[user_id], dict):
-            orchestrators[user_id]['last_activity'] = time.time()
-    
-    # Process message
-    try:
-        if isinstance(orchestrators[user_id], dict):
-            orchestrator = orchestrators[user_id]['orchestrator']
+    # CRITICAL FIX: Ensure Flask app context for SQLAlchemy
+    with app.app_context():
+        # Cleanup old orchestrators before creating new ones
+        cleanup_orchestrators()
+        
+        # Get or create orchestrator for this user with activity tracking
+        if user_id not in orchestrators:
+            try:
+                logger.info(f"🤖 Creating new orchestrator for user {user_id}")
+                orchestrator = DynamicChatOrchestrator(
+                    socketio=socketio,
+                    session_id=user_id
+                )
+                
+                # Store with activity tracking
+                orchestrators[user_id] = {
+                    'orchestrator': orchestrator,
+                    'last_activity': time.time()
+                }
+                
+                logger.info(f"✅ Created new orchestrator for user {user_id}")
+            except Exception as e:
+                logger.error(f"❌ Error creating orchestrator for user {user_id}: {e}")
+                emit('error', {'message': 'Failed to initialize chat system'})
+                return
         else:
-            # Legacy format - convert
-            orchestrator = orchestrators[user_id]
-            orchestrators[user_id] = {
-                'orchestrator': orchestrator,
-                'last_activity': time.time()
-            }
+            logger.info(f"🔄 Using existing orchestrator for user {user_id}")
+            # Update activity timestamp
+            if isinstance(orchestrators[user_id], dict):
+                orchestrators[user_id]['last_activity'] = time.time()
         
-        logger.info(f"🚀 Starting message processing for user {user_id}")
-        orchestrator.process_message(message, user_id)
-        logger.info(f"✅ Message processing initiated for user {user_id}")
-        
-    except Exception as e:
-        logger.error(f"❌ Error processing message for user {user_id}: {e}")
-        logger.error(f"❌ Exception details: {type(e).__name__}: {str(e)}")
-        emit('error', {'message': 'Error processing your message'})
+        # Process message
+        try:
+            if isinstance(orchestrators[user_id], dict):
+                orchestrator = orchestrators[user_id]['orchestrator']
+            else:
+                # Legacy format - convert
+                orchestrator = orchestrators[user_id]
+                orchestrators[user_id] = {
+                    'orchestrator': orchestrator,
+                    'last_activity': time.time()
+                }
+            
+            logger.info(f"🚀 Starting message processing for user {user_id}")
+            orchestrator.process_message(message, user_id)
+            logger.info(f"✅ Message processing initiated for user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing message for user {user_id}: {e}")
+            logger.error(f"❌ Exception details: {type(e).__name__}: {str(e)}")
+            emit('error', {'message': 'Error processing your message'})
 
 # Chat cleanup scheduler
 scheduler = BackgroundScheduler()
