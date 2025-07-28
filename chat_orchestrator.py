@@ -528,16 +528,23 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
         MAIN METHOD: Verarbeitet User-Nachrichten mit dynamischen DB-Assistants
         MEMORY OPTIMIZED: Activity-Tracking für TTL-Management
         """
+        logger.info(f"🎯 PROCESS_MESSAGE START: user_id={user_id}, message='{message}'")
+        
         self._update_activity()  # Track activity für Memory-Management
         
         if self.is_processing:
+            logger.warning(f"⏳ Already processing for user {user_id}")
             self.emit_message("⏳ Ein anderer Prozess läuft bereits. Bitte warten Sie einen Moment.", "assistant")
             return
         
         # CRITICAL: Supervisor-Assistant sicherstellen
+        logger.info(f"🔍 Loading supervisor assistant for user {user_id}")
         if not self.get_or_create_assistant():
+            logger.error(f"❌ Failed to load supervisor assistant for user {user_id}")
             self.emit_error("❌ Supervisor-Assistant konnte nicht geladen werden")
             return
+        
+        logger.info(f"✅ Supervisor assistant loaded for user {user_id}")
         
         self.is_processing = True
         self.emit_status("🤖 KI-Agent arbeitet...")
@@ -545,30 +552,43 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
         try:
             # Thread erstellen falls nicht vorhanden
             if not self.thread:
+                logger.info(f"🧵 Creating new thread for user {user_id}")
                 self.thread = self.client.beta.threads.create()
                 self.emit_status("✅ Neuer Thread erstellt")
+                logger.info(f"✅ Thread created: {self.thread.id}")
+            else:
+                logger.info(f"🔄 Using existing thread: {self.thread.id}")
             
             # Nachricht zum Thread hinzufügen
+            logger.info(f"📝 Adding message to thread for user {user_id}")
             self.client.beta.threads.messages.create(
                 thread_id=self.thread.id,
                 role="user",
                 content=message
             )
+            logger.info(f"✅ Message added to thread")
             
             # Run starten
+            logger.info(f"🚀 Starting run with assistant: {self.supervisor_assistant.id}")
             self.current_run = self.client.beta.threads.runs.create(
                 thread_id=self.thread.id,
                 assistant_id=self.supervisor_assistant.id
             )
+            logger.info(f"✅ Run created: {self.current_run.id}")
             
             # Monitoring starten
+            logger.info(f"👁️ Starting run monitoring for user {user_id}")
             self._monitor_run()
+            logger.info(f"✅ Run monitoring completed for user {user_id}")
             
         except Exception as e:
+            logger.error(f"❌ Error in process_message for user {user_id}: {e}")
+            logger.error(f"❌ Exception details: {type(e).__name__}: {str(e)}")
             self.emit_error(f"❌ Fehler bei der Nachrichtenverarbeitung: {e}")
         finally:
             self.is_processing = False
             self._update_activity()
+            logger.info(f"🏁 PROCESS_MESSAGE END: user_id={user_id}")
     
     def force_recovery(self):
         """Erzwingt Recovery bei hängenden Runs mit sofortigem Neustart"""
@@ -1153,27 +1173,33 @@ Bitte geben Sie Ihre Freigabe oder vorschlagen Sie Änderungen."""
     # SocketIO Hilfsfunktionen (unverändert)
     def emit_message(self, message, sender="assistant", metadata=None):
         """Sendet Nachricht an Chat"""
+        room = self._room()
+        logger.info(f"📡 EMIT MESSAGE to room {room}: {message[:100]}...")
         self.socketio.emit('new_message', {
             'sender': 'KI-Assistant' if sender == 'assistant' else sender,
             'message': message,
             'timestamp': datetime.now().strftime('%H:%M:%S'),
             'type': sender,
             'metadata': metadata or {}
-        }, room=self._room())
+        }, room=room)
     
     def emit_status(self, status):
         """Sendet Status-Update"""
+        room = self._room()
+        logger.info(f"📡 EMIT STATUS to room {room}: {status}")
         self.socketio.emit('status_update', {
             'status': status,
             'timestamp': datetime.now().strftime('%H:%M:%S')
-        }, room=self._room())
+        }, room=room)
     
     def emit_error(self, error):
         """Sendet Fehler-Nachricht"""
+        room = self._room()
+        logger.error(f"📡 EMIT ERROR to room {room}: {error}")
         self.socketio.emit('error_message', {
             'error': error,
             'timestamp': datetime.now().strftime('%H:%M:%S')
-        }, room=self._room())
+        }, room=room)
     
     def set_chat_mode(self, mode):
         """Setzt den Chat-Modus (collaborative/autonomous)"""

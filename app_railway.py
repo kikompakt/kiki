@@ -212,14 +212,15 @@ def init_default_workflows():
             workflow.workflow_type = 'sequential'
             logger.info("Updated workflow type from course_creation to sequential")
         
-        # Check if workflow has steps
+        # FORCE RECREATION: Delete existing steps and recreate with correct steps
         existing_steps_count = WorkflowStep.query.filter_by(workflow_id=workflow.id).count()
         if existing_steps_count > 0:
-            logger.info(f"Default workflow already has {existing_steps_count} steps")
-            db.session.commit()
-            return
+            logger.info(f"FORCE UPDATE: Deleting {existing_steps_count} existing steps to recreate proper workflow")
+            WorkflowStep.query.filter_by(workflow_id=workflow.id).delete()
+        else:
+            logger.info("No existing steps found, creating new ones")
     
-    # Create default workflow steps
+    # Create default workflow steps (ALWAYS CREATE THESE)
     default_steps = [
         {
             'step_name': 'Outline-Erstellung',
@@ -265,7 +266,9 @@ def init_default_workflows():
         }
     ]
     
-    for step_data in default_steps:
+    logger.info(f"Creating {len(default_steps)} workflow steps")
+    
+    for i, step_data in enumerate(default_steps):
         step = WorkflowStep(
             workflow_id=workflow.id,
             step_name=step_data['step_name'],
@@ -280,9 +283,13 @@ def init_default_workflows():
             output_target=step_data['output_target']
         )
         db.session.add(step)
+        logger.info(f"Added step {i+1}: {step_data['step_name']}")
     
     db.session.commit()
-    logger.info(f"Default workflow updated with {len(default_steps)} steps")
+    
+    # Verify creation
+    final_steps_count = WorkflowStep.query.filter_by(workflow_id=workflow.id).count()
+    logger.info(f"✅ WORKFLOW STEPS VERIFICATION: {final_steps_count} steps created successfully")
 
 def cleanup_orchestrators():
     """Clean up old orchestrators to prevent memory leaks"""
@@ -799,14 +806,20 @@ def handle_disconnect():
 @socketio.on('send_message')
 def handle_message(data):
     """Handle chat message from user"""
+    logger.info(f"📨 RECEIVE MESSAGE EVENT: {data}")
+    
     if 'user_id' not in session:
+        logger.warning("❌ MESSAGE REJECTED: No user_id in session")
         emit('error', {'message': 'Not authenticated'})
         return
     
     user_id = session['user_id']
     message = data.get('message', '').strip()
     
+    logger.info(f"📨 Processing message from user {user_id}: '{message}'")
+    
     if not message:
+        logger.warning(f"❌ Empty message from user {user_id}")
         return
     
     # Cleanup old orchestrators before creating new ones
@@ -815,6 +828,7 @@ def handle_message(data):
     # Get or create orchestrator for this user with activity tracking
     if user_id not in orchestrators:
         try:
+            logger.info(f"🤖 Creating new orchestrator for user {user_id}")
             orchestrator = DynamicChatOrchestrator(
                 socketio=socketio,
                 session_id=user_id
@@ -826,12 +840,13 @@ def handle_message(data):
                 'last_activity': time.time()
             }
             
-            logger.info(f"Created new orchestrator for user {user_id}")
+            logger.info(f"✅ Created new orchestrator for user {user_id}")
         except Exception as e:
-            logger.error(f"Error creating orchestrator for user {user_id}: {e}")
+            logger.error(f"❌ Error creating orchestrator for user {user_id}: {e}")
             emit('error', {'message': 'Failed to initialize chat system'})
             return
     else:
+        logger.info(f"🔄 Using existing orchestrator for user {user_id}")
         # Update activity timestamp
         if isinstance(orchestrators[user_id], dict):
             orchestrators[user_id]['last_activity'] = time.time()
@@ -848,9 +863,13 @@ def handle_message(data):
                 'last_activity': time.time()
             }
         
+        logger.info(f"🚀 Starting message processing for user {user_id}")
         orchestrator.process_message(message, user_id)
+        logger.info(f"✅ Message processing initiated for user {user_id}")
+        
     except Exception as e:
-        logger.error(f"Error processing message for user {user_id}: {e}")
+        logger.error(f"❌ Error processing message for user {user_id}: {e}")
+        logger.error(f"❌ Exception details: {type(e).__name__}: {str(e)}")
         emit('error', {'message': 'Error processing your message'})
 
 # Chat cleanup scheduler
