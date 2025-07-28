@@ -175,9 +175,16 @@ Der NEUE 7-Schritte-Workflow:
     # Update existing assistants with new timeout settings
     existing_assistants = Assistant.query.all()
     for assistant in existing_assistants:
-        if assistant.timeout_seconds == 180:  # Update old 180s timeout
+        current_timeout = assistant.timeout_seconds
+        logger.info(f"Assistant {assistant.name}: current timeout = {current_timeout}")
+        
+        # Update any timeout that's not 300s (handles NULL, 180, or other values)
+        if current_timeout != 300:
+            old_timeout = current_timeout
             assistant.timeout_seconds = 300
-            logger.info(f"Updated timeout for assistant {assistant.name} to 300s")
+            logger.info(f"✅ Updated timeout for assistant {assistant.name}: {old_timeout}s → 300s")
+        else:
+            logger.info(f"Assistant {assistant.name} already has 300s timeout")
     
     db.session.commit()
     logger.info("Default assistants initialized")
@@ -609,6 +616,20 @@ scheduler.add_job(
 
 # Initialize database immediately (wichtig für gunicorn/Railway)
 init_database()
+
+# FORCE UPDATE: Ensure all assistants have 300s timeout (Safety measure)
+with app.app_context():
+    try:
+        force_assistants = Assistant.query.all()
+        for assistant in force_assistants:
+            if assistant.timeout_seconds != 300:
+                old = assistant.timeout_seconds
+                assistant.timeout_seconds = 300
+                logger.info(f"🔧 FORCE UPDATE: {assistant.name} timeout {old}s → 300s")
+        db.session.commit()
+        logger.info("🔧 FORCE UPDATE: All assistants verified with 300s timeout")
+    except Exception as e:
+        logger.error(f"Force update failed: {e}")
 
 # Start scheduler
 scheduler.start()
