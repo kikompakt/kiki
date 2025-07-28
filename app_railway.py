@@ -172,6 +172,13 @@ Der NEUE 7-Schritte-Workflow:
             assistant = Assistant(**assistant_data)
             db.session.add(assistant)
     
+    # Update existing assistants with new timeout settings
+    existing_assistants = Assistant.query.all()
+    for assistant in existing_assistants:
+        if assistant.timeout_seconds == 180:  # Update old 180s timeout
+            assistant.timeout_seconds = 300
+            logger.info(f"Updated timeout for assistant {assistant.name} to 300s")
+    
     db.session.commit()
     logger.info("Default assistants initialized")
 

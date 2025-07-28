@@ -88,7 +88,7 @@ class Assistant(db.Model):
     
     # Workflow settings
     retry_attempts = db.Column(db.Integer, default=3)
-    timeout_seconds = db.Column(db.Integer, default=180)
+    timeout_seconds = db.Column(db.Integer, default=300)
     error_handling = db.Column(db.String(20), default='graceful')
     
     # Performance settings
