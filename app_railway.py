@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from chat_orchestrator import DynamicChatOrchestrator
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -467,19 +467,24 @@ def handle_connect():
     user_id = session['user_id']
     username = session.get('username', 'Unknown')
     
-    logger.info(f"SocketIO connection: {username} (ID: {user_id})")
+    # Join user-specific room so orchestrator can emit directly
+    join_room(f'session_{user_id}')
+    
+    logger.info(f"SocketIO connection: {username} (ID: {user_id}) - joined room session_{user_id}")
     emit('status', {'message': f'Connected as {username}'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
     user_id = session.get('user_id')
-    if user_id and user_id in orchestrators:
-        try:
-            del orchestrators[user_id]
-            logger.info(f"Cleaned up orchestrator for disconnected user {user_id}")
-        except Exception as e:
-            logger.error(f"Error cleaning orchestrator for user {user_id}: {e}")
+    if user_id:
+        leave_room(f'session_{user_id}')
+        if user_id in orchestrators:
+            try:
+                del orchestrators[user_id]
+                logger.info(f"Cleaned up orchestrator for disconnected user {user_id}")
+            except Exception as e:
+                logger.error(f"Error cleaning orchestrator for user {user_id}: {e}")
     
     # Trigger memory cleanup
     cleanup_orchestrators()
