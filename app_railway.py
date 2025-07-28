@@ -400,6 +400,212 @@ def admin_workflows_help():
     """Workflow help page"""
     return render_template('admin_workflows_help.html')
 
+# Workflow API Routes
+@app.route('/api/workflows', methods=['GET'])
+@require_admin
+def api_get_workflows():
+    """Get all workflows"""
+    workflows = Workflow.query.all()
+    workflow_list = []
+    
+    for workflow in workflows:
+        steps = WorkflowStep.query.filter_by(workflow_id=workflow.id).order_by(WorkflowStep.order_index).all()
+        workflow_data = {
+            'id': workflow.id,
+            'name': workflow.name,
+            'description': workflow.description,
+            'workflow_type': workflow.workflow_type,
+            'is_active': workflow.is_active,
+            'is_default': workflow.is_default,
+            'created_at': workflow.created_at.isoformat() if workflow.created_at else None,
+            'steps': [{
+                'id': step.id,
+                'step_name': step.step_name,
+                'agent_role': step.agent_role,
+                'order_index': step.order_index,
+                'is_enabled': step.is_enabled,
+                'is_parallel': step.is_parallel,
+                'retry_attempts': step.retry_attempts,
+                'timeout_seconds': step.timeout_seconds,
+                'execution_condition': step.execution_condition,
+                'input_source': step.input_source,
+                'output_target': step.output_target
+            } for step in steps]
+        }
+        workflow_list.append(workflow_data)
+    
+    return jsonify(workflow_list)
+
+@app.route('/api/workflows/<int:workflow_id>', methods=['GET'])
+@require_admin
+def api_get_workflow(workflow_id):
+    """Get specific workflow"""
+    workflow = Workflow.query.get_or_404(workflow_id)
+    steps = WorkflowStep.query.filter_by(workflow_id=workflow.id).order_by(WorkflowStep.order_index).all()
+    
+    workflow_data = {
+        'id': workflow.id,
+        'name': workflow.name,
+        'description': workflow.description,
+        'workflow_type': workflow.workflow_type,
+        'is_active': workflow.is_active,
+        'is_default': workflow.is_default,
+        'steps': [{
+            'step_name': step.step_name,
+            'agent_role': step.agent_role,
+            'order_index': step.order_index,
+            'is_enabled': step.is_enabled,
+            'is_parallel': step.is_parallel,
+            'retry_attempts': step.retry_attempts,
+            'timeout_seconds': step.timeout_seconds,
+            'execution_condition': step.execution_condition,
+            'input_source': step.input_source,
+            'output_target': step.output_target
+        } for step in steps]
+    }
+    
+    return jsonify(workflow_data)
+
+@app.route('/api/workflows', methods=['POST'])
+@require_admin  
+def api_create_workflow():
+    """Create new workflow"""
+    try:
+        data = request.get_json()
+        
+        # Create workflow
+        workflow = Workflow(
+            name=data['name'],
+            description=data.get('description'),
+            workflow_type=data.get('workflow_type', 'sequential'),
+            is_active=data.get('is_active', True),
+            is_default=data.get('is_default', False),
+            created_by=session.get('user_id')
+        )
+        
+        db.session.add(workflow)
+        db.session.flush()  # Get the ID
+        
+        # Add steps
+        for step_data in data.get('steps', []):
+            step = WorkflowStep(
+                workflow_id=workflow.id,
+                step_name=step_data['step_name'],
+                agent_role=step_data['agent_role'],
+                order_index=step_data['order_index'],
+                is_enabled=step_data.get('is_enabled', True),
+                is_parallel=step_data.get('is_parallel', False),
+                retry_attempts=step_data.get('retry_attempts', 3),
+                timeout_seconds=step_data.get('timeout_seconds', 180),
+                execution_condition=step_data.get('execution_condition'),
+                input_source=step_data.get('input_source'),
+                output_target=step_data.get('output_target')
+            )
+            db.session.add(step)
+        
+        db.session.commit()
+        logger.info(f"Created workflow: {workflow.name} by user {session.get('user_id')}")
+        
+        return jsonify({'success': True, 'id': workflow.id})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating workflow: {e}")
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/workflows/<int:workflow_id>', methods=['PUT'])
+@require_admin
+def api_update_workflow(workflow_id):
+    """Update workflow"""
+    try:
+        workflow = Workflow.query.get_or_404(workflow_id)
+        data = request.get_json()
+        
+        # Update workflow fields
+        workflow.name = data['name']
+        workflow.description = data.get('description')
+        workflow.workflow_type = data.get('workflow_type', 'sequential')
+        workflow.is_active = data.get('is_active', True)
+        workflow.is_default = data.get('is_default', False)
+        workflow.updated_at = datetime.utcnow()
+        
+        # Delete existing steps
+        WorkflowStep.query.filter_by(workflow_id=workflow.id).delete()
+        
+        # Add new steps
+        for step_data in data.get('steps', []):
+            step = WorkflowStep(
+                workflow_id=workflow.id,
+                step_name=step_data['step_name'],
+                agent_role=step_data['agent_role'],
+                order_index=step_data['order_index'],
+                is_enabled=step_data.get('is_enabled', True),
+                is_parallel=step_data.get('is_parallel', False),
+                retry_attempts=step_data.get('retry_attempts', 3),
+                timeout_seconds=step_data.get('timeout_seconds', 180),
+                execution_condition=step_data.get('execution_condition'),
+                input_source=step_data.get('input_source'),
+                output_target=step_data.get('output_target')
+            )
+            db.session.add(step)
+        
+        db.session.commit()
+        logger.info(f"Updated workflow: {workflow.name}")
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating workflow: {e}")
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/workflows/<int:workflow_id>', methods=['DELETE'])
+@require_admin
+def api_delete_workflow(workflow_id):
+    """Delete workflow"""
+    try:
+        workflow = Workflow.query.get_or_404(workflow_id)
+        
+        # Don't allow deleting default workflows
+        if workflow.is_default:
+            return jsonify({'error': 'Standard-Workflows können nicht gelöscht werden'}), 400
+        
+        # Delete steps first
+        WorkflowStep.query.filter_by(workflow_id=workflow.id).delete()
+        
+        # Delete workflow
+        db.session.delete(workflow)
+        db.session.commit()
+        
+        logger.info(f"Deleted workflow: {workflow.name}")
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting workflow: {e}")
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/workflows/<int:workflow_id>/toggle', methods=['POST'])
+@require_admin
+def api_toggle_workflow(workflow_id):
+    """Toggle workflow active status"""
+    try:
+        workflow = Workflow.query.get_or_404(workflow_id)
+        workflow.is_active = not workflow.is_active
+        workflow.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        status = "aktiviert" if workflow.is_active else "deaktiviert"
+        logger.info(f"Workflow {workflow.name} {status}")
+        
+        return jsonify({'success': True, 'is_active': workflow.is_active})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error toggling workflow: {e}")
+        return jsonify({'error': str(e)}), 400
+
 # API Routes
 @app.route('/api/assistants', methods=['GET'])
 @require_admin

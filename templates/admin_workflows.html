@@ -347,8 +347,8 @@
                                 <label class="form-label">Agent auswählen</label>
                                 <select class="form-select" id="agentRole" name="agent_role" required>
                                     <option value="">-- Agent wählen --</option>
-                                    {% for agent in agents %}
-                                    <option value="{{ agent.role }}">{{ agent.name }} ({{ agent.role }})</option>
+                                    {% for assistant in assistants %}
+                                    <option value="{{ assistant.role }}">{{ assistant.name }} ({{ assistant.role }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
