@@ -872,6 +872,17 @@ def handle_message(data):
                     'last_activity': time.time()
                 }
             
+            # CRITICAL FIX: Echo user message to frontend so it appears in chat
+            username = session.get('username', f'User {user_id}')
+            logger.info(f"📤 Echoing user message to frontend: '{message}' from {username}")
+            
+            emit('new_message', {
+                'sender': username,
+                'message': message,
+                'timestamp': datetime.utcnow().strftime('%H:%M:%S'),
+                'type': 'user'
+            }, room=f'session_{user_id}')
+            
             logger.info(f"🚀 Starting message processing for user {user_id}")
             orchestrator.process_message(message, user_id)
             logger.info(f"✅ Message processing initiated for user {user_id}")

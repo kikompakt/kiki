@@ -796,7 +796,34 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                     continue
                     
                 elif run.status in ["failed", "cancelled", "expired"]:
-                    self.emit_error(f"❌ Verarbeitung fehlgeschlagen: {run.status}")
+                    # ENHANCED ERROR HANDLING: Get detailed error information
+                    error_message = f"❌ Verarbeitung fehlgeschlagen: {run.status}"
+                    
+                    # Try to get detailed error information
+                    try:
+                        if hasattr(run, 'last_error') and run.last_error:
+                            error_details = f"Error Code: {run.last_error.code}, Message: {run.last_error.message}"
+                            logger.error(f"🚨 OPENAI RUN ERROR DETAILS: {error_details}")
+                            error_message += f"\nDetails: {error_details}"
+                        
+                        # Also check run steps for more detailed errors
+                        run_steps = self.client.beta.threads.runs.steps.list(
+                            thread_id=self.thread.id,
+                            run_id=self.current_run.id
+                        )
+                        
+                        for step in run_steps.data:
+                            if step.status == "failed" and hasattr(step, 'last_error') and step.last_error:
+                                step_error = f"Step Error - Code: {step.last_error.code}, Message: {step.last_error.message}"
+                                logger.error(f"🚨 OPENAI STEP ERROR: {step_error}")
+                                if "Details:" not in error_message:
+                                    error_message += f"\nStep Details: {step_error}"
+                                    
+                    except Exception as error_fetch_error:
+                        logger.error(f"❌ Could not fetch detailed error info: {error_fetch_error}")
+                    
+                    self.emit_error(error_message)
+                    logger.error(f"🚨 FULL RUN FAILURE: Status={run.status}, RunID={run.id}, ThreadID={self.thread.id}")
                     break
                     
                 elif run.status in ["queued", "in_progress"]:
@@ -938,13 +965,21 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
     
     def _call_assistant_by_role(self, role, arguments):
         """NEUE FUNKTION: Ruft Assistant basierend auf Rolle aus Datenbank auf"""
-        if role not in self.assistants:
-            return f"Assistant mit Rolle '{role}' nicht in Datenbank konfiguriert oder inaktiv."
         
-        assistant_data = self.assistants[role]
+        # CRITICAL FIX: Fallback to supervisor if specific role is not available
+        if role not in self.assistants:
+            logger.warning(f"⚠️ Assistant role '{role}' not found in database, falling back to supervisor")
+            if 'supervisor' in self.assistants:
+                assistant_data = self.assistants['supervisor']
+                logger.info(f"✅ Using supervisor assistant as fallback for {role}")
+            else:
+                logger.error(f"❌ No supervisor assistant available as fallback for {role}")
+                return f"Assistant mit Rolle '{role}' nicht in Datenbank konfiguriert und kein Supervisor-Fallback verfügbar."
+        else:
+            assistant_data = self.assistants[role]
         
         try:
-            self.emit_status(f"🤖 {assistant_data['name']} arbeitet...")
+            self.emit_status(f"🤖 {assistant_data['name']} arbeitet (Rolle: {role})...")
             
             # Emit agent communication details
             self.emit_workflow_update({
@@ -963,7 +998,8 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
             elif role == "quality_checker":
                 prompt = self._create_quality_prompt(arguments)
             else:
-                prompt = str(arguments)
+                # Generic prompt for any role
+                prompt = f"Als {role}: {str(arguments)}"
             
             # Emit the prompt being sent to agent
             self.emit_workflow_update({
@@ -973,6 +1009,9 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                 'timestamp': datetime.now().strftime('%H:%M:%S')
             })
             
+            # ENHANCED ERROR HANDLING: More detailed OpenAI API call
+            logger.info(f"🚀 Making OpenAI API call for {role} with model {assistant_data['model']}")
+            
             # Assistant über OpenAI API aufrufen
             response = self.client.chat.completions.create(
                 model=assistant_data['model'],
@@ -980,11 +1019,12 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                     {"role": "system", "content": assistant_data['instructions']},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=3000
+                temperature=assistant_data.get('temperature', 0.3),
+                max_tokens=assistant_data.get('max_tokens', 3000)
             )
             
             result = response.choices[0].message.content
+            logger.info(f"✅ OpenAI API call successful for {role}, response length: {len(result)}")
             
             # Emit agent response summary
             self.emit_workflow_update({
@@ -998,8 +1038,9 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
             return result
             
         except Exception as e:
+            logger.error(f"❌ OpenAI API call failed for {role}: {type(e).__name__}: {str(e)}")
             self.emit_error(f"⚠️ {assistant_data['name']} Fehler: {e}")
-            return f"{assistant_data['name']} ist momentan nicht verfügbar. Bitte versuchen Sie es später erneut."
+            return f"{assistant_data['name']} ist momentan nicht verfügbar. Fehler: {str(e)}"
     
     def _create_content_prompt(self, arguments):
         """Erstellt OPTIMIERTEN Prompt für Content Creator mit Quality-Focus"""
