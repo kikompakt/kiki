@@ -62,7 +62,9 @@ def migrate_database():
             
             # Verify tables exist
             logger.info("Verifying tables...")
-            tables = db.engine.table_names()
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
             expected_tables = ['user', 'project', 'chat_session', 'chat_message', 'uploaded_file', 'course']
             
             for table in expected_tables:

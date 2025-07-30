@@ -24,9 +24,11 @@ def wait_for_database(max_retries=30, delay=2):
     for attempt in range(max_retries):
         try:
             from app_simplified import app, db
+            from sqlalchemy import text
             with app.app_context():
-                # Try to connect to database
-                db.engine.execute('SELECT 1')
+                # Try to connect to database (SQLAlchemy 2.0+ syntax)
+                with db.engine.connect() as connection:
+                    connection.execute(text('SELECT 1'))
                 logger.info("✅ Database connection successful!")
                 return True
         except Exception as e:
