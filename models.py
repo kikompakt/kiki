@@ -72,12 +72,15 @@ class Assistant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     assistant_id = db.Column(db.String(100), unique=True, nullable=False)
-    role = db.Column(db.String(50), nullable=False)
+    role = db.Column(db.String(50), nullable=True)  # CHANGED: Optional for flexibility
     description = db.Column(db.Text)
     instructions = db.Column(db.Text)
     model = db.Column(db.String(50), default='gpt-4o')
     is_active = db.Column(db.Boolean, default=True)
     order_index = db.Column(db.Integer, default=0)
+    
+    # NEW: Assistant type categorization (optional)
+    assistant_type = db.Column(db.String(50), default='custom')  # custom, system, workflow
     
     # Advanced behavior parameters
     temperature = db.Column(db.Float, default=0.7)
@@ -123,7 +126,13 @@ class WorkflowStep(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     workflow_id = db.Column(db.Integer, db.ForeignKey('workflows.id'), nullable=False)
-    agent_role = db.Column(db.String(50), nullable=False)
+    
+    # NEW FLEXIBLE SYSTEM: Direct assistant assignment
+    assistant_id = db.Column(db.Integer, db.ForeignKey('assistants.id'), nullable=False)
+    
+    # LEGACY SUPPORT: Keep agent_role for backward compatibility (nullable)
+    agent_role = db.Column(db.String(50), nullable=True)
+    
     step_name = db.Column(db.String(100), nullable=False)
     order_index = db.Column(db.Integer, nullable=False)
     is_enabled = db.Column(db.Boolean, default=True)
@@ -133,6 +142,15 @@ class WorkflowStep(db.Model):
     execution_condition = db.Column(db.String(200))
     input_source = db.Column(db.String(100))
     output_target = db.Column(db.String(100))
+    
+    # NEW: Custom prompt for this step
+    custom_prompt = db.Column(db.Text)
+    
+    # NEW: Step type for different execution modes
+    step_type = db.Column(db.String(50), default='assistant_call')  # assistant_call, condition, delay
+    
+    # Relationship to get assistant details
+    assistant = db.relationship('Assistant', backref='workflow_steps')
 
 class WorkflowExecution(db.Model):
     __tablename__ = 'workflow_executions'

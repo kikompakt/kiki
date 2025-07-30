@@ -170,6 +170,99 @@ class TestUseCases:
         
         return test_result
     
+    def test_case_4_flexible_workflows(self):
+        """
+        Test Case 4: Flexible Workflow System
+        Testet neue flexible Assistant-zu-Workflow Zuordnung
+        """
+        print("\n🎯 TEST CASE 4: Flexible Workflow System")
+        print("="*60)
+        
+        # Mock SocketIO und Flask App Context
+        class MockSocketIO:
+            def emit(self, event, data, room=None):
+                pass
+        
+        class MockFlaskApp:
+            def app_context(self):
+                return self
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+        
+        try:
+            # Test flexible assistant call by ID
+            orchestrator = DynamicChatOrchestrator(
+                socketio=MockSocketIO(),
+                project_id="test",
+                session_id="test_flexible"
+            )
+            
+            print("📋 Teste neue Methoden des flexiblen Systems...")
+            
+            # Test 1: _call_assistant_by_id method exists
+            has_flexible_method = hasattr(orchestrator, '_call_assistant_by_id')
+            
+            # Test 2: execute_workflow_steps method exists  
+            has_workflow_method = hasattr(orchestrator, 'execute_workflow_steps')
+            
+            # Test 3: New tool execute_workflow is defined
+            required_tools = orchestrator._get_required_tools()
+            tool_names = [tool['function']['name'] for tool in required_tools if tool['type'] == 'function']
+            has_execute_workflow_tool = 'execute_workflow' in tool_names
+            
+            results = {
+                'flexible_assistant_call': has_flexible_method,
+                'workflow_execution': has_workflow_method,
+                'execute_workflow_tool': has_execute_workflow_tool,
+                'total_tools': len(tool_names),
+                'available_tools': tool_names
+            }
+            
+            # Check results
+            all_features_available = all([
+                has_flexible_method,
+                has_workflow_method, 
+                has_execute_workflow_tool
+            ])
+            
+            print(f"✅ Flexible Assistant Call: {'✓' if has_flexible_method else '✗'}")
+            print(f"✅ Workflow Execution: {'✓' if has_workflow_method else '✗'}")
+            print(f"✅ Execute Workflow Tool: {'✓' if has_execute_workflow_tool else '✗'}")
+            print(f"📊 Total Tools: {len(tool_names)}")
+            
+            # Test result
+            test_result = {
+                "test_id": "flexible_workflows",
+                "test_type": "system_functionality",
+                "features_tested": results,
+                "all_features_available": all_features_available,
+                "feature_count": len([k for k, v in results.items() if isinstance(v, bool) and v]),
+                "status": "completed" if all_features_available else "partial",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            self.results.append(test_result)
+            
+            if all_features_available:
+                print("✅ FLEXIBLE WORKFLOW SYSTEM TEST PASSED")
+            else:
+                print("⚠️ FLEXIBLE WORKFLOW SYSTEM TEST PARTIALLY PASSED")
+            
+            return test_result
+            
+        except Exception as e:
+            error_result = {
+                "test_id": "flexible_workflows",
+                "error": str(e),
+                "status": "failed",
+                "timestamp": datetime.now().isoformat()
+            }
+            self.results.append(error_result)
+            print(f"❌ Flexible Workflow Test fehlgeschlagen: {e}")
+            return error_result
+    
     def _run_test_workflow(self, course_request, test_id):
         """
         Führt den kompletten Workflow für einen Test-Case durch
@@ -294,6 +387,9 @@ Lernziele:
         # Test Case 3: Intent Detection
         result3 = self.test_case_3_intent_detection()
         
+        # Test Case 4: Flexible Workflow System
+        result4 = self.test_case_4_flexible_workflows()
+        
         # Summary Report
         self._generate_summary_report()
         
@@ -350,10 +446,12 @@ def main():
             tester.test_case_2_data_analysis_advanced()
         elif test_case == "intent":
             tester.test_case_3_intent_detection()
+        elif test_case == "workflows":
+            tester.test_case_4_flexible_workflows()
         elif test_case == "all":
             tester.run_all_tests()
         else:
-            print("Usage: python test_use_cases.py [marketing|data|intent|all]")
+            print("Usage: python test_use_cases.py [marketing|data|intent|workflows|all]")
     else:
         # Default: Alle Tests ausführen
         tester = TestUseCases()

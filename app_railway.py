@@ -805,8 +805,8 @@ def api_create_assistant():
     try:
         data = request.get_json()
 
-        # Basic validation
-        required_fields = ['name', 'assistant_id', 'role']
+        # Basic validation - role is now optional for flexible workflow system
+        required_fields = ['name', 'assistant_id']
         for field in required_fields:
             if field not in data or not data[field]:
                 return jsonify({'error': f'Feld "{field}" fehlt'}), 400
@@ -824,12 +824,13 @@ def api_create_assistant():
         assistant = Assistant(
             name=data['name'],
             assistant_id=data['assistant_id'],
-            role=data['role'],
+            role=data.get('role'),  # Optional for flexible workflow system
             description=data.get('description', ''),
             instructions=data.get('instructions', ''),
             model=data.get('model', 'gpt-4o'),
             order_index=int(data.get('order_index', 99)),
             is_active=bool(data.get('is_active', True)),
+            assistant_type=data.get('assistant_type', 'custom'),  # New field
             temperature=float(data.get('temperature', 0.7)),
             top_p=float(data.get('top_p', 1.0)),
             max_tokens=int(data.get('max_tokens', 2000)),
@@ -853,6 +854,113 @@ def api_create_assistant():
         logger.error(f"Error creating assistant: {e}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# Workflow Management API Endpoints
+
+@app.route('/api/workflows', methods=['GET', 'POST'])
+@require_admin
+def api_workflows():
+    """Get all workflows or create new workflow"""
+    if request.method == 'GET':
+        workflows = Workflow.query.all()
+        return jsonify([{
+            'id': w.id,
+            'name': w.name,
+            'description': w.description,
+            'workflow_type': w.workflow_type,
+            'is_active': w.is_active,
+            'is_default': w.is_default,
+            'created_at': w.created_at.isoformat() if w.created_at else None
+        } for w in workflows])
+    
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            workflow = Workflow(
+                name=data['name'],
+                description=data.get('description', ''),
+                workflow_type=data.get('workflow_type', 'course_creation'),
+                is_active=data.get('is_active', True),
+                is_default=data.get('is_default', False),
+                created_by=session.get('user_id')
+            )
+            db.session.add(workflow)
+            db.session.commit()
+            
+            return jsonify({'id': workflow.id, 'success': True}), 201
+        except Exception as e:
+            logger.error(f"Error creating workflow: {e}")
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workflows/<int:workflow_id>/steps', methods=['GET', 'POST'])
+@require_admin
+def api_workflow_steps(workflow_id):
+    """Get workflow steps or add new step"""
+    if request.method == 'GET':
+        steps = WorkflowStep.query.filter_by(workflow_id=workflow_id).order_by(WorkflowStep.order_index).all()
+        return jsonify([{
+            'id': s.id,
+            'workflow_id': s.workflow_id,
+            'assistant_id': s.assistant_id,
+            'assistant_name': s.assistant.name if s.assistant else None,
+            'agent_role': s.agent_role,  # Legacy support
+            'step_name': s.step_name,
+            'order_index': s.order_index,
+            'is_enabled': s.is_enabled,
+            'custom_prompt': s.custom_prompt,
+            'step_type': s.step_type
+        } for s in steps])
+    
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            step = WorkflowStep(
+                workflow_id=workflow_id,
+                assistant_id=data['assistant_id'],
+                step_name=data['step_name'],
+                order_index=data['order_index'],
+                is_enabled=data.get('is_enabled', True),
+                custom_prompt=data.get('custom_prompt', ''),
+                step_type=data.get('step_type', 'assistant_call')
+            )
+            db.session.add(step)
+            db.session.commit()
+            
+            return jsonify({'id': step.id, 'success': True}), 201
+        except Exception as e:
+            logger.error(f"Error creating workflow step: {e}")
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/workflows/<int:workflow_id>/steps/<int:step_id>', methods=['PUT', 'DELETE'])
+@require_admin
+def api_workflow_step_detail(workflow_id, step_id):
+    """Update or delete workflow step"""
+    step = WorkflowStep.query.filter_by(id=step_id, workflow_id=workflow_id).first_or_404()
+    
+    if request.method == 'PUT':
+        try:
+            data = request.get_json()
+            for key, value in data.items():
+                if hasattr(step, key):
+                    setattr(step, key, value)
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            logger.error(f"Error updating workflow step: {e}")
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+    
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(step)
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            logger.error(f"Error deleting workflow step: {e}")
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
 
 # Course Management API Endpoints
 

@@ -550,6 +550,27 @@ Gib den vollständig korrigierten und qualitätsgesicherten Kurs aus!''',
                         "required": ["query"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "execute_workflow",
+                    "description": "Führt einen benutzerdefinierten Workflow mit konfigurierten Assistants aus.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "workflow_id": {
+                                "type": "integer",
+                                "description": "Die ID des auszuführenden Workflows."
+                            },
+                            "input_content": {
+                                "type": "string",
+                                "description": "Der Eingabeinhalt für den Workflow (z.B. Kursthema)."
+                            }
+                        },
+                        "required": ["workflow_id", "input_content"]
+                    }
+                }
             }
         ]
     
@@ -978,6 +999,11 @@ Analysiere die Nutzeranfrage sorgfältig und handle situationsgerecht!"""
                 elif function_name == "knowledge_lookup":
                     self.emit_status(f"📚 Wissensbasis-Suche läuft...")
                     result = self.knowledge_lookup(arguments.get("query", ""), arguments.get("context", ""))
+                elif function_name == "execute_workflow":
+                    self.emit_status(f"🔄 Führe benutzerdefinierten Workflow aus...")
+                    workflow_id = arguments.get("workflow_id")
+                    input_content = arguments.get("input_content", "")
+                    result = self.execute_workflow_steps(workflow_id, input_content)
                 else:
                     result = f"❌ Unbekannte Tool-Funktion: {function_name}"
                 
@@ -1640,6 +1666,151 @@ Ihr Kurs wurde sicher in der Datenbank gespeichert und ist jederzeit abrufbar!""
             })
         
         return sections
+    
+    def _call_assistant_by_id(self, assistant_id, arguments, custom_prompt=None):
+        """
+        NEW FLEXIBLE SYSTEM: Ruft Assistant direkt über ID auf (statt Rolle)
+        Ermöglicht flexible Workflow-Zuordnung über UI
+        """
+        try:
+            # Get assistant from database by ID
+            from models import Assistant
+            from flask import current_app
+            
+            with current_app.app_context():
+                assistant = Assistant.query.get(assistant_id)
+                if not assistant:
+                    logger.error(f"❌ Assistant with ID {assistant_id} not found")
+                    return f"Assistant mit ID {assistant_id} nicht gefunden."
+                
+                if not assistant.is_active:
+                    logger.warning(f"⚠️ Assistant {assistant.name} is not active")
+                    return f"Assistant {assistant.name} ist nicht aktiv."
+                
+                self.emit_status(f"🤖 {assistant.name} arbeitet...")
+                
+                # Emit workflow update
+                self.emit_workflow_update({
+                    'type': 'assistant_start',
+                    'assistant_name': assistant.name,
+                    'assistant_id': assistant_id,
+                    'model': assistant.model,
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                })
+                
+                # Use custom prompt if provided, otherwise create based on arguments
+                if custom_prompt:
+                    prompt = custom_prompt.format(**arguments) if arguments else custom_prompt
+                else:
+                    # Fallback: Create generic prompt from arguments
+                    prompt = f"Aufgabe: {str(arguments)}"
+                
+                # Emit the prompt being sent
+                self.emit_workflow_update({
+                    'type': 'assistant_prompt',
+                    'assistant_name': assistant.name,
+                    'prompt': prompt[:200] + "..." if len(prompt) > 200 else prompt,
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                })
+                
+                logger.info(f"🚀 Calling assistant {assistant.name} (ID: {assistant_id})")
+                
+                # Call OpenAI API with assistant's parameters
+                response = self.client.chat.completions.create(
+                    model=assistant.model,
+                    messages=[
+                        {"role": "system", "content": assistant.instructions or "Du bist ein hilfreicher AI-Assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=assistant.temperature,
+                    max_tokens=assistant.max_tokens
+                )
+                
+                result = response.choices[0].message.content
+                logger.info(f"✅ Assistant {assistant.name} completed, response length: {len(result)}")
+                
+                # Emit response summary
+                self.emit_workflow_update({
+                    'type': 'assistant_response',
+                    'assistant_name': assistant.name,
+                    'response': result[:300] + "..." if len(result) > 300 else result,
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
+                })
+                
+                self.emit_status(f"✅ {assistant.name} abgeschlossen")
+                return result
+                
+        except Exception as e:
+            logger.error(f"❌ Error calling assistant {assistant_id}: {e}")
+            self.emit_error(f"⚠️ Fehler beim Aufrufen des Assistants: {e}")
+            return f"Fehler beim Aufrufen des Assistants: {str(e)}"
+    
+    def execute_workflow_steps(self, workflow_id, initial_input=""):
+        """
+        NEW: Execute a complete workflow by ID with flexible assistant assignment
+        """
+        try:
+            from models import Workflow, WorkflowStep
+            from flask import current_app
+            
+            with current_app.app_context():
+                workflow = Workflow.query.get(workflow_id)
+                if not workflow or not workflow.is_active:
+                    logger.error(f"❌ Workflow {workflow_id} not found or inactive")
+                    return f"Workflow {workflow_id} nicht gefunden oder inaktiv"
+                
+                # Get workflow steps ordered by order_index
+                steps = WorkflowStep.query.filter_by(
+                    workflow_id=workflow_id, 
+                    is_enabled=True
+                ).order_by(WorkflowStep.order_index).all()
+                
+                if not steps:
+                    logger.warning(f"⚠️ No enabled steps found for workflow {workflow_id}")
+                    return "Keine aktiven Schritte in diesem Workflow gefunden"
+                
+                self.emit_status(f"🚀 Starte Workflow: {workflow.name} ({len(steps)} Schritte)")
+                
+                current_output = initial_input
+                
+                for i, step in enumerate(steps, 1):
+                    if not step.assistant_id:
+                        logger.warning(f"⚠️ Step {step.step_name} has no assistant assigned, skipping")
+                        continue
+                    
+                    self.emit_status(f"🔄 Schritt {i}/{len(steps)}: {step.step_name}")
+                    
+                    # Prepare arguments for this step
+                    step_arguments = {
+                        'content': current_output,
+                        'topic': initial_input,
+                        'step_name': step.step_name,
+                        'step_number': i,
+                        'total_steps': len(steps)
+                    }
+                    
+                    # Execute step with assigned assistant
+                    step_result = self._call_assistant_by_id(
+                        assistant_id=step.assistant_id,
+                        arguments=step_arguments,
+                        custom_prompt=step.custom_prompt
+                    )
+                    
+                    if "Fehler" in step_result or "Error" in step_result:
+                        logger.error(f"❌ Step {step.step_name} failed: {step_result}")
+                        self.emit_error(f"Schritt {step.step_name} fehlgeschlagen: {step_result}")
+                        break
+                    
+                    current_output = step_result
+                    self.emit_status(f"✅ Schritt {i} abgeschlossen")
+                
+                self.emit_status(f"🎉 Workflow {workflow.name} erfolgreich abgeschlossen!")
+                return current_output
+                
+        except Exception as e:
+            logger.error(f"❌ Workflow execution error: {e}")
+            self.emit_error(f"Workflow-Fehler: {e}")
+            return f"Workflow-Ausführung fehlgeschlagen: {str(e)}"
     
     def _detect_intent(self, message: str) -> str:
         """
