@@ -458,28 +458,54 @@ def handle_user_message(data):
 def init_database():
     """Initialize database with default data"""
     with app.app_context():
-        db.create_all()
-        
-        # Create default admin user if not exists
-        if not User.query.filter_by(username='admin').first():
-            admin_user = User(
-                username='admin',
-                password_hash=generate_password_hash('admin123'),
-                role='admin'
-            )
-            db.session.add(admin_user)
+        try:
+            # Wait for database to be ready
+            max_retries = 10
+            for attempt in range(max_retries):
+                try:
+                    from sqlalchemy import text
+                    with db.engine.connect() as connection:
+                        connection.execute(text('SELECT 1'))
+                    logger.info("✅ Database connection successful!")
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.info(f"Database not ready, attempt {attempt + 1}/{max_retries}: {e}")
+                        import time
+                        time.sleep(2)
+                    else:
+                        logger.warning("Database connection timeout, proceeding anyway...")
             
-        # Create default demo user
-        if not User.query.filter_by(username='demo').first():
-            demo_user = User(
-                username='demo',
-                password_hash=generate_password_hash('demo123'),
-                role='user'
-            )
-            db.session.add(demo_user)
-        
-        db.session.commit()
-        logger.info("Database initialized with default users")
+            # Create all tables
+            db.create_all()
+            logger.info("✅ Database tables created")
+            
+            # Create default admin user if not exists
+            if not User.query.filter_by(username='admin').first():
+                admin_user = User(
+                    username='admin',
+                    password_hash=generate_password_hash('admin123'),
+                    role='admin'
+                )
+                db.session.add(admin_user)
+                logger.info("✅ Admin user created")
+                
+            # Create default demo user
+            if not User.query.filter_by(username='demo').first():
+                demo_user = User(
+                    username='demo',
+                    password_hash=generate_password_hash('demo123'),
+                    role='user'
+                )
+                db.session.add(demo_user)
+                logger.info("✅ Demo user created")
+            
+            db.session.commit()
+            logger.info("✅ Database initialization completed successfully!")
+            
+        except Exception as e:
+            logger.error(f"⚠️  Database initialization error: {e}")
+            logger.info("App will continue with limited functionality...")
 
 # ==============================================
 # APPLICATION STARTUP

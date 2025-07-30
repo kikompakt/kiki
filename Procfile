@@ -1,2 +1,1 @@
-release: python railway_deploy.py
 web: gunicorn --worker-class=gevent --workers=1 --timeout=300 --keep-alive=120 --max-requests=500 --bind=0.0.0.0:$PORT app_simplified:app 
