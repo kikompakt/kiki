@@ -363,6 +363,12 @@ def handle_connect():
     emit('status', {'msg': 'Connected to Kiki Chat'})
     logger.info("SocketIO connection established")
 
+@socketio.on('test_message')
+def handle_test_message(data):
+    """Test SocketIO connection"""
+    logger.info(f"🧪 Test message received from frontend: {data}")
+    emit('test_response', {'status': 'SocketIO connection working!', 'received': data})
+
 @socketio.on('join_project')
 def handle_join_project(data):
     """User joins a chat session"""

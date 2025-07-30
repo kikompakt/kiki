@@ -159,11 +159,20 @@
             socket = io();
 
             socket.on('connect', function() {
-                console.log('Connected to server');
+                console.log('✅ SocketIO Connected to server');
+                console.log(`📍 SESSION_ID: ${SESSION_ID}, PROJECT_ID: ${PROJECT_ID}`);
+                
                 socket.emit('join_project', {
                     session_id: SESSION_ID,
                     project_id: PROJECT_ID
                 });
+                
+                // Test message to verify SocketIO works
+                setTimeout(() => {
+                    console.log('🧪 Testing SocketIO connection...');
+                    socket.emit('test_message', {test: 'Frontend is ready'});
+                }, 1000);
+                
                 updateStatus('Verbunden mit Server');
             });
 
@@ -195,6 +204,12 @@
             socket.on('error_message', function(data) {
                 updateStatus('❌ ' + data.error);
                 hideTypingIndicator();
+            });
+
+            // Test response handler
+            socket.on('test_response', function(data) {
+                console.log('🧪 SocketIO test successful:', data);
+                updateStatus('✅ SocketIO funktioniert korrekt');
             });
 
             // Fallback message handler
