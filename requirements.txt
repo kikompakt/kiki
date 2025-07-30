@@ -12,7 +12,8 @@ psycopg2-binary==2.9.9
 # OpenAI & AI/ML
 openai>=1.30.0
 chromadb==0.4.24
-sentence-transformers==2.2.2
+sentence-transformers==2.7.0
+huggingface-hub>=0.20.0
 numpy==1.26.4
 
 # Utilities

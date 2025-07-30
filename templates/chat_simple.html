@@ -76,7 +76,8 @@
 
                 <!-- Status Bar -->
                 <div class="status-bar" id="statusBar">
-                    Bereit für Ihre Kursanfrage...
+                    <span>Bereit für Ihre Kursanfrage...</span>
+                    <small class="text-muted ms-3" id="responseTime"></small>
                 </div>
 
                 <!-- Main Chat Area -->
@@ -172,8 +173,16 @@
             });
 
             socket.on('new_message', function(data) {
+                // Calculate response time
+                if (messageStartTime) {
+                    const responseTime = ((Date.now() - messageStartTime) / 1000).toFixed(1);
+                    document.getElementById('responseTime').textContent = `⚡ ${responseTime}s`;
+                    messageStartTime = null;
+                }
+                
                 addMessage(data.message, data.type, data.sender);
                 hideTypingIndicator();
+                updateStatus('Bereit für neue Nachrichten');
             });
 
             socket.on('status_update', function(data) {
@@ -222,17 +231,23 @@
             });
         }
 
+        let messageStartTime = null;
+
         function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value.trim();
 
             if (!message) return;
 
+            // Start performance timer
+            messageStartTime = Date.now();
+
             // Add user message to chat
             addMessage(message, 'user', 'Sie');
 
-            // Show typing indicator
+            // Show typing indicator  
             showTypingIndicator();
+            updateStatus('🤖 KI denkt nach...');
 
             // Send to server
             socket.emit('user_message', {
@@ -268,6 +283,9 @@
             // Convert markdown-like formatting
             formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             formattedContent = formattedContent.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Convert markdown links to clickable buttons
+            formattedContent = formattedContent.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="btn btn-sm btn-primary me-2 mb-1" target="_blank">$1</a>');
 
             messageDiv.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start mb-1">

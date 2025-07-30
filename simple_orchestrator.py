@@ -101,7 +101,8 @@ class SimpleOrchestrator:
             
             self.supervisor_assistant = self.client.beta.assistants.update(
                 assistant_id=supervisor_config['id'],
-                tools=required_tools
+                tools=required_tools,
+                instructions=self._get_supervisor_instructions()
             )
             
             self.emit_status(f"✅ Supervisor loaded: {supervisor_config['name']}")
@@ -554,7 +555,8 @@ Führe eine kritische Qualitätsprüfung durch und gib das Ergebnis im JSON-Form
             return result
         except Exception as e:
             logger.warning(f"Knowledge lookup error: {e}")
-            return f"Wissensbasis für '{query}' ist momentan nicht verfügbar."
+            # Return fast fallback to avoid delays
+            return f"Die Wissenssuche ist momentan nicht verfügbar. Ich nutze mein integriertes Wissen für '{query}'."
     
     # SocketIO Helper Methods
     def emit_message(self, message, sender="assistant"):
@@ -662,6 +664,37 @@ Führe eine kritische Qualitätsprüfung durch und gib das Ergebnis im JSON-Form
                     break
         
         return ' '.join(description_lines)[:500] if description_lines else "KI-generierter Kurs"
+    
+    def _get_supervisor_instructions(self):
+        """Get performance-optimized supervisor instructions"""
+        return """Du bist ein intelligenter KI-Supervisor für automatische Kurserstellung.
+
+DEINE AUFGABE: Erkenne die Nutzerintention und handle entsprechend:
+
+🎯 BEI EXPLIZITEN KURSANFRAGEN:
+Wenn der User eindeutig einen Kurs erstellen möchte (erkennbar an Wörtern wie "Kurs", "erstelle", "Training", "Schulung", "Lerninhalt"):
+Führe automatisch diese 3 Schritte aus:
+1. create_content(topic="[Thema]", instructions="Erstelle einen professionellen Kurs")
+2. optimize_didactics(content="[Ergebnis von Schritt 1]")  
+3. critically_review(content="[Ergebnis von Schritt 2]")
+
+💬 BEI ANDEREN ANFRAGEN (SCHNELLE ANTWORTEN):
+- Allgemeine Fragen: Beantworte SOFORT freundlich und kompetent (OHNE Tools)
+- Begrüßungen: Antworte SOFORT höflich (OHNE Tools)
+- Unklare Themen: Stelle SOFORT Rückfragen ("Zu welchem Thema soll der Kurs erstellt werden?")
+
+⚡ PERFORMANCE-REGEL:
+- Einfache Fragen: Antwort OHNE Tools (unter 3 Sekunden)
+- Kurs-Erstellung: Mit Tools (kann länger dauern)
+
+BEISPIELE:
+✅ "Erstelle einen Kurs über Python" → Starte Workflow
+✅ "Ich brauche ein Training zu Vertrieb" → Starte Workflow  
+❌ "Hallo" → SOFORTIGE Antwort OHNE Tools
+❌ "Was kannst du?" → SOFORTIGE Erklärung OHNE Tools
+❌ "Wie geht es dir?" → SOFORTIGE Antwort OHNE Tools
+
+Analysiere die Nutzeranfrage sorgfältig und handle situationsgerecht!"""
 
 # ==============================================
 # ORCHESTRATOR MANAGEMENT
