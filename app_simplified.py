@@ -239,6 +239,65 @@ def new_project():
     flash(f'Project "{title}" created successfully', 'success')
     return redirect(url_for('chat', project_id=project.id))
 
+@app.route('/courses')
+def courses():
+    """Display all created courses"""
+    try:
+        all_courses = Course.query.order_by(Course.created_at.desc()).limit(50).all()
+        return render_template('courses.html', courses=all_courses)
+    except Exception as e:
+        logger.error(f"Error loading courses: {e}")
+        flash('Error loading courses', 'error')
+        return redirect(url_for('chat'))
+
+@app.route('/course/<int:course_id>')
+def view_course(course_id):
+    """View a specific course"""
+    try:
+        course = Course.query.get_or_404(course_id)
+        return render_template('course_view.html', course=course)
+    except Exception as e:
+        logger.error(f"Error loading course {course_id}: {e}")
+        flash('Course not found', 'error')
+        return redirect(url_for('courses'))
+
+@app.route('/course/<int:course_id>/download')
+def download_course(course_id):
+    """Download course as text file"""
+    try:
+        course = Course.query.get_or_404(course_id)
+        
+        from flask import Response
+        
+        # Create text content
+        content = f"""# {course.title}
+
+{course.description if course.description else ''}
+
+## Kursinhalt
+
+{course.full_content}
+
+---
+Erstellt am: {course.created_at.strftime('%Y-%m-%d %H:%M:%S')}
+Qualitäts-Score: {course.quality_score if course.quality_score else 'Nicht bewertet'}
+"""
+        
+        # Create filename
+        safe_title = ''.join(c for c in course.title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        filename = f"{safe_title}.txt"
+        
+        return Response(
+            content,
+            mimetype='text/plain',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading course {course_id}: {e}")
+        flash('Download failed', 'error')
+        return redirect(url_for('view_course', course_id=course_id))
+
 @app.route('/upload-file', methods=['POST'])
 def upload_file():
     """Simplified file upload for knowledge base"""

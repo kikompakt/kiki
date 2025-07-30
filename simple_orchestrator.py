@@ -300,6 +300,22 @@ class SimpleOrchestrator:
                     
                     if messages.data and messages.data[0].content:
                         response = messages.data[0].content[0].text.value
+                        
+                        # Check if this is a completed course
+                        if self._is_course_creation_complete(response):
+                            course_id = self._save_course_to_database(response)
+                            if course_id:
+                                # Add course links to response
+                                response += f"""
+
+🎉 **Kurs erfolgreich erstellt und gespeichert!**
+
+**📖 Kurs anzeigen:** [Hier klicken](/course/{course_id})
+**📥 Als Textdatei herunterladen:** [Download](/course/{course_id}/download)
+**📚 Alle Kurse anzeigen:** [Kurs-Übersicht](/courses)
+
+Ihr Kurs wurde in der Datenbank gespeichert und ist jederzeit abrufbar!"""
+                        
                         self.emit_message(response, "assistant")
                     break
                     
@@ -552,6 +568,86 @@ Führe eine kritische Qualitätsprüfung durch und gib das Ergebnis im JSON-Form
             'error': error,
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }, room=room)
+    
+    def _is_course_creation_complete(self, response: str) -> bool:
+        """Check if the response indicates course creation is complete"""
+        completion_indicators = [
+            "Kurs wurde erfolgreich erstellt",
+            "Der Kurs ist jetzt bereit",
+            "Kurserstellung abgeschlossen",
+            "Ihr Kurs ist fertig",
+            "Der komplette Kurs",
+            "# " # Likely a markdown course title
+        ]
+        
+        return any(indicator in response for indicator in completion_indicators)
+    
+    def _save_course_to_database(self, content: str) -> Optional[int]:
+        """Save the created course to database"""
+        try:
+            # Import here to avoid circular imports
+            from app_simplified import db, Course
+            from flask import current_app
+            
+            with current_app.app_context():
+                # Extract course metadata
+                title = self._extract_course_title(content)
+                description = self._extract_course_description(content)
+                
+                # Create new course record
+                new_course = Course(
+                    user_id=1,  # Mock user for demo
+                    project_id=None,
+                    title=title,
+                    description=description,
+                    full_content=content,
+                    content_length=len(content),
+                    status='completed'
+                )
+                
+                db.session.add(new_course)
+                db.session.commit()
+                
+                logger.info(f"✅ Course saved with ID {new_course.id}: '{title}'")
+                return new_course.id
+                
+        except Exception as e:
+            logger.error(f"❌ Error saving course: {e}")
+            return None
+    
+    def _extract_course_title(self, content: str) -> str:
+        """Extract course title from content"""
+        lines = content.split('\n')
+        for line in lines[:10]:  # Check first 10 lines
+            line = line.strip()
+            if line.startswith('# '):
+                return line[2:].strip()
+            elif line.startswith('**') and line.endswith('**'):
+                return line[2:-2].strip()
+        
+        # Fallback title
+        return f"KI-Kurs erstellt am {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    
+    def _extract_course_description(self, content: str) -> str:
+        """Extract course description from content"""
+        lines = content.split('\n')
+        description_lines = []
+        
+        found_title = False
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if not found_title and (line.startswith('#') or line.startswith('**')):
+                found_title = True
+                continue
+            if found_title and len(description_lines) < 2:
+                if not line.startswith('#') and not line.startswith('**'):
+                    description_lines.append(line)
+                else:
+                    break
+        
+        return ' '.join(description_lines)[:500] if description_lines else "KI-generierter Kurs"
 
 # ==============================================
 # ORCHESTRATOR MANAGEMENT
