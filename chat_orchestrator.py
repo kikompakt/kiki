@@ -18,6 +18,7 @@ import threading
 import gc
 import logging
 import base64
+import re
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List
 
@@ -261,33 +262,81 @@ class DynamicChatOrchestrator:
             self._create_fallback_supervisor()
     
     def _create_fallback_supervisor(self):
-        """Creates a fallback supervisor assistant when database is not available"""
-        logger.info("🔄 Creating fallback supervisor assistant (no database access)")
+        """Creates fallback assistants when database is not available"""
+        logger.info("🔄 Creating fallback assistants (no database access)")
         
-        # Create basic supervisor assistant data
-        fallback_supervisor = {
-            'id': 1,
-            'name': 'Fallback Supervisor',
-            'assistant_id': 'asst_19FlW2QtTAIb7Z96f3ukfSre',  # Use default from config
-            'role': 'supervisor',
-            'description': 'Fallback Supervisor für lokale Entwicklung',
-            'instructions': 'Du bist ein freundlicher und hilfreicher KI-Assistant.',
-            'model': 'gpt-4o',
-            'temperature': 0.7,
-            'top_p': 1.0,
-            'max_tokens': 2000,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0,
-            'retry_attempts': 3,
-            'timeout_seconds': 300,
-            'enabled_tools': ['create_content','optimize_didactics','critically_review','request_user_feedback','knowledge_lookup']
+        # Create comprehensive fallback assistant data
+        fallback_assistants = {
+            'supervisor': {
+                'id': 1,
+                'name': 'Fallback Supervisor',
+                'assistant_id': 'asst_19FlW2QtTAIb7Z96f3ukfSre',
+                'role': 'supervisor',
+                'description': 'Fallback Supervisor für lokale Entwicklung',
+                'instructions': self._get_supervisor_instructions(),
+                'model': 'gpt-4o',
+                'temperature': 0.7,
+                'top_p': 1.0,
+                'max_tokens': 2000,
+                'frequency_penalty': 0.0,
+                'presence_penalty': 0.0,
+                'retry_attempts': 3,
+                'timeout_seconds': 300,
+                'enabled_tools': ['create_content','optimize_didactics','critically_review','request_user_feedback','knowledge_lookup']
+            },
+            'content_creator': {
+                'id': 2,
+                'name': 'Fallback Content Creator',
+                'assistant_id': 'asst_19FlW2QtTAIb7Z96f3ukfSre',  # Use same assistant ID
+                'role': 'content_creator',
+                'description': 'Fallback Content Creator für Kursinhalte',
+                'instructions': '''Du bist ein Experte für die Erstellung von hochwertigen Lerninhalten.
+                
+DEINE AUFGABE: Erstelle strukturierte, professionelle Kursinhalte basierend auf dem gegebenen Thema.
+Erstelle immer vollständige, sofort einsetzbare Kursinhalte mit klaren Lernzielen, logischem Aufbau und praktischen Beispielen.''',
+                'model': 'gpt-4o',
+                'temperature': 0.3,
+                'max_tokens': 3000
+            },
+            'didactic_expert': {
+                'id': 3,
+                'name': 'Fallback Didactic Expert',
+                'assistant_id': 'asst_19FlW2QtTAIb7Z96f3ukfSre',
+                'role': 'didactic_expert',
+                'description': 'Fallback Didactic Expert für didaktische Optimierung',
+                'instructions': '''Du bist ein Didaktik-Experte für die Optimierung von Lerninhalten.
+                
+DEINE AUFGABE: Optimiere vorhandene Kursinhalte didaktisch und methodisch.
+Gib den vollständig optimierten Kursinhalt aus (nicht nur Verbesserungsvorschläge)!''',
+                'model': 'gpt-4o',
+                'temperature': 0.4,
+                'max_tokens': 3000
+            },
+            'quality_checker': {
+                'id': 4,
+                'name': 'Fallback Quality Checker',
+                'assistant_id': 'asst_19FlW2QtTAIb7Z96f3ukfSre',
+                'role': 'quality_checker',
+                'description': 'Fallback Quality Checker für finale Prüfung',
+                'instructions': '''Du bist ein Qualitäts-Experte für die finale Prüfung von Kursinhalten.
+                
+DEINE AUFGABE: Führe eine kritische Qualitätsprüfung durch und korrigiere Mängel.
+Gib den vollständig korrigierten und qualitätsgesicherten Kurs aus!''',
+                'model': 'gpt-4o',
+                'temperature': 0.2,
+                'max_tokens': 3000
+            }
         }
         
-        self.assistants['supervisor'] = fallback_supervisor
-        self.supervisor_assistant_id = fallback_supervisor['assistant_id']
+        # Load all fallback assistants
+        for role, assistant_data in fallback_assistants.items():
+            self.assistants[role] = assistant_data
+            logger.info(f"✅ Fallback {role} assistant created")
         
-        logger.info(f"✅ Fallback supervisor created: {self.supervisor_assistant_id}")
-        self.emit_status(f"✅ Fallback Supervisor Assistant geladen: {self.supervisor_assistant_id}")
+        self.supervisor_assistant_id = fallback_assistants['supervisor']['assistant_id']
+        
+        logger.info(f"✅ All fallback assistants created: {list(fallback_assistants.keys())}")
+        self.emit_status(f"✅ Fallback Assistants geladen: {len(fallback_assistants)} Rollen verfügbar")
 
     def get_or_create_assistant(self):
         """
@@ -524,29 +573,36 @@ class DynamicChatOrchestrator:
     
     def _get_supervisor_instructions(self):
         """Einfache, klare Instructions für den Supervisor-Assistant"""
-        return """Du bist ein KI-Supervisor für automatische Kurserstellung.
+        return """Du bist ein intelligenter KI-Supervisor für automatische Kurserstellung.
 
-DEINE AUFGABE: Bei jeder Kurs-Anfrage führst du automatisch diese 3 Schritte aus:
+DEINE AUFGABE: Erkenne die Nutzerintention und handle entsprechend:
 
+🎯 BEI EXPLIZITEN KURSANFRAGEN:
+Wenn der User eindeutig einen Kurs erstellen möchte (erkennbar an Wörtern wie "Kurs", "erstelle", "Training", "Schulung", "Lerninhalt"):
+
+Führe automatisch diese 3 Schritte aus:
 1. create_content(topic="[Thema]", instructions="Erstelle einen professionellen Kurs")
 2. optimize_didactics(content="[Ergebnis von Schritt 1]")  
 3. critically_review(content="[Ergebnis von Schritt 2]")
 
-WICHTIG: 
+WICHTIG für Kurserstellung:
 - Führe ALLE 3 Schritte automatisch aus
 - Verwende die Tool-Outputs direkt weiter
 - Frage NICHT nach Bestätigung zwischen den Schritten
 - Nach Schritt 3 sagst du: "Kurs wurde erfolgreich erstellt!"
 
-BEISPIEL:
-User: "Erstelle einen Kurs über Python"
-Du führst aus:
-1. create_content(topic="Python", instructions="Erstelle einen professionellen Kurs")
-2. optimize_didactics(content="[Content aus Schritt 1]")
-3. critically_review(content="[Content aus Schritt 2]")
-Antwort: "Kurs wurde erfolgreich erstellt!"
+💬 BEI ANDEREN ANFRAGEN:
+- Allgemeine Fragen: Beantworte freundlich und kompetent
+- Unklare Themen: Stelle Rückfragen ("Zu welchem Thema soll der Kurs erstellt werden?")
+- Begrüßungen: Antworte höflich und erkläre deine Fähigkeiten
 
-Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
+BEISPIELE:
+✅ "Erstelle einen Kurs über Python" → Starte Workflow
+✅ "Ich brauche ein Training zu Vertrieb" → Starte Workflow  
+❌ "Was kannst du?" → Erkläre Fähigkeiten (KEIN Workflow)
+❌ "Wie funktioniert das?" → Beantworte Frage (KEIN Workflow)
+
+Analysiere die Nutzeranfrage sorgfältig und handle situationsgerecht!"""
     
     def create_thread(self):
         """Erstellt einen neuen Chat-Thread."""
@@ -570,6 +626,13 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
         if self.is_processing:
             logger.warning(f"⏳ Already processing for user {user_id}")
             self.emit_message("⏳ Ein anderer Prozess läuft bereits. Bitte warten Sie einen Moment.", "assistant")
+            return
+        
+        # INTENT DETECTION: Check if this is a simple greeting or small talk
+        intent = self._detect_intent(message)
+        if intent in ['greeting', 'small_talk']:
+            logger.info(f"🤝 Intent detected as {intent}, sending direct response")
+            self._handle_simple_response(message, intent)
             return
         
         # CRITICAL: Supervisor-Assistant sicherstellen
@@ -892,13 +955,18 @@ Starte SOFORT mit Schritt 1 wenn ein User ein Kursthema nennt."""
                     try:
                         # Quality Assessment für Scoring
                         quality_result = assess_course_quality(result)
-                        result = result + f"\n\n📊 Quality Score: {quality_result.get('overall_score', 'N/A')}/10"
                         
-                        # Quality Gate Check
-                        if quality_result.get('overall_score', 0) < 7.0:
-                            self.emit_status(f"⚠️ Quality Gate: Score {quality_result.get('overall_score', 0)}/10 - Verbesserung empfohlen")
+                        # FIXED: Convert 0-100 scale to 0-10 scale
+                        overall_score_100 = quality_result.get('overall_score', 0)
+                        overall_score_10 = round(overall_score_100 / 10, 1)
+                        
+                        result = result + f"\n\n📊 Quality Score: {overall_score_10}/10"
+                        
+                        # Quality Gate Check with correct 0-10 scale
+                        if overall_score_10 < 7.0:
+                            self.emit_status(f"⚠️ Quality Gate: Score {overall_score_10}/10 - Verbesserung empfohlen")
                         else:
-                            self.emit_status(f"✅ Quality Gate: Score {quality_result.get('overall_score', 0)}/10 - Qualitätsziel erreicht")
+                            self.emit_status(f"✅ Quality Gate: Score {overall_score_10}/10 - Qualitätsziel erreicht")
                             
                     except Exception as e:
                         self.emit_status(f"⚠️ Quality Gate Check Fehler: {e}")
@@ -1572,6 +1640,97 @@ Ihr Kurs wurde sicher in der Datenbank gespeichert und ist jederzeit abrufbar!""
             })
         
         return sections
+    
+    def _detect_intent(self, message: str) -> str:
+        """
+        Simple intent detection to categorize user messages
+        Returns: 'greeting', 'small_talk', 'course_request', 'other'
+        """
+        message_lower = message.lower().strip()
+        message_len = len(message)
+        
+        # Greeting patterns
+        greeting_patterns = [
+            'hallo', 'hi', 'hey', 'guten tag', 'guten morgen', 'guten abend',
+            'servus', 'moin', 'hallöchen', 'grüß gott', 'grüß dich'
+        ]
+        
+        # Small talk patterns
+        small_talk_patterns = [
+            'wie geht', 'was machst du', 'was kannst du', 'wer bist du',
+            'danke', 'dankeschön', 'vielen dank', 'super', 'toll', 'prima',
+            'ok', 'okay', 'alles klar', 'verstehe', 'gut'
+        ]
+        
+        # Course request patterns  
+        course_patterns = [
+            'kurs', 'erstell', 'training', 'schulung', 'lerninhalt',
+            'lektion', 'tutorial', 'workshop', 'seminar', 'modul'
+        ]
+        
+        # Check for greetings (prioritize short messages)
+        if message_len <= 20:
+            for pattern in greeting_patterns:
+                if pattern in message_lower:
+                    return 'greeting'
+        
+        # Check for small talk
+        for pattern in small_talk_patterns:
+            if pattern in message_lower:
+                return 'small_talk'
+        
+        # Check for course requests
+        for pattern in course_patterns:
+            if pattern in message_lower:
+                return 'course_request'
+        
+        # Default classification based on length and content
+        if message_len <= 30 and not any(p in message_lower for p in course_patterns):
+            return 'small_talk'
+        
+        return 'other'
+    
+    def _handle_simple_response(self, message: str, intent: str):
+        """
+        Handle simple responses for greetings and small talk without triggering workflow
+        """
+        self._update_activity()
+        
+        if intent == 'greeting':
+            responses = [
+                "Hallo! Schön, Sie zu sehen. Wie kann ich Ihnen heute helfen?",
+                "Hi! Ich bin Ihr KI-Assistent für die Kurserstellung. Was kann ich für Sie tun?",
+                "Guten Tag! Möchten Sie einen neuen Kurs erstellen oder haben Sie Fragen?",
+                "Hallo! Ich freue mich, Ihnen bei der Kurserstellung helfen zu können."
+            ]
+        elif intent == 'small_talk':
+            if any(word in message.lower() for word in ['danke', 'dankeschön', 'vielen dank']):
+                responses = [
+                    "Gerne! Falls Sie weitere Fragen haben, bin ich da.",
+                    "Sehr gerne! Kann ich Ihnen noch bei etwas anderem helfen?",
+                    "Freut mich, dass ich helfen konnte!"
+                ]
+            elif any(word in message.lower() for word in ['wie geht', 'was machst du', 'was kannst du']):
+                responses = [
+                    "Ich bin Ihr KI-Assistent für die automatische Kurserstellung. Ich kann professionelle Lerninhalte zu jedem Thema erstellen.",
+                    "Mir geht es gut, danke! Ich helfe dabei, hochwertige Online-Kurse zu entwickeln. Haben Sie ein bestimmtes Thema im Kopf?",
+                    "Ich spezialisiere mich auf die Erstellung von strukturierten Lerninhalten mit didaktischer Optimierung."
+                ]
+            else:
+                responses = [
+                    "Das freut mich! Möchten Sie einen Kurs zu einem bestimmten Thema erstellen?",
+                    "Schön! Womit kann ich Ihnen konkret helfen?",
+                    "Wenn Sie Fragen haben oder einen Kurs erstellen möchten, sagen Sie einfach Bescheid!"
+                ]
+        else:
+            responses = ["Wie kann ich Ihnen helfen?"]
+        
+        # Select first response (can be randomized later)
+        response = responses[0]
+        
+        # Send response directly without workflow
+        self.emit_message(response, "assistant")
+        logger.info(f"📤 Simple response sent for {intent}: {response[:50]}...")
 
 # Legacy-Kompatibilität für bestehenden Code
 ChatOrchestrator = DynamicChatOrchestrator

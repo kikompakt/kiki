@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 from orchestrator import ContentOrchestrator
 from quality_assessment import QualityAssessment
+from chat_orchestrator import DynamicChatOrchestrator
 
 class TestUseCases:
     def __init__(self):
@@ -78,6 +79,96 @@ class TestUseCases:
         # Test durchführen
         result = self._run_test_workflow(course_request, "data_analysis_advanced")
         return result
+    
+    def test_case_3_intent_detection(self):
+        """
+        Test Case 3: Intent Detection für Begrüßungen
+        Testet, dass einfache Begrüßungen keinen Workflow auslösen
+        """
+        print("\n🎯 TEST CASE 3: Intent Detection - Begrüßungen")
+        print("="*60)
+        
+        # Mock SocketIO für Tests
+        class MockSocketIO:
+            def emit(self, event, data, room=None):
+                pass
+        
+        # Test-Nachrichten
+        test_messages = [
+            "Hallo",
+            "Hi",
+            "Guten Tag",
+            "Was kannst du?",
+            "Danke",
+            "Wie geht es dir?",
+            # Negative Tests (sollten Workflow auslösen)
+            "Erstelle einen Kurs über Python",
+            "Ich brauche ein Training zu Vertrieb"
+        ]
+        
+        expected_intents = [
+            "greeting",     # Hallo
+            "greeting",     # Hi  
+            "greeting",     # Guten Tag
+            "small_talk",   # Was kannst du?
+            "small_talk",   # Danke
+            "small_talk",   # Wie geht es dir?
+            "course_request", # Erstelle einen Kurs über Python
+            "course_request"  # Ich brauche ein Training zu Vertrieb
+        ]
+        
+        print("📋 Teste Intent-Erkennung mit verschiedenen Nachrichten...")
+        
+        orchestrator = DynamicChatOrchestrator(
+            socketio=MockSocketIO(),
+            project_id="test",
+            session_id="test_intent"
+        )
+        
+        results = []
+        for i, message in enumerate(test_messages):
+            detected_intent = orchestrator._detect_intent(message)
+            expected_intent = expected_intents[i]
+            
+            is_correct = detected_intent == expected_intent
+            results.append({
+                "message": message,
+                "expected": expected_intent,
+                "detected": detected_intent,
+                "correct": is_correct
+            })
+            
+            status = "✅" if is_correct else "❌"
+            print(f"{status} '{message}' → {detected_intent} (erwartet: {expected_intent})")
+        
+        # Zusammenfassung
+        correct_count = sum(1 for r in results if r["correct"])
+        total_count = len(results)
+        accuracy = (correct_count / total_count) * 100
+        
+        print(f"\n📊 ERGEBNISSE Intent Detection:")
+        print(f"   Korrekt erkannt: {correct_count}/{total_count} ({accuracy:.1f}%)")
+        
+        # Test-Ergebnis für Summary
+        test_result = {
+            "test_id": "intent_detection",
+            "test_type": "intent_classification",
+            "accuracy": accuracy,
+            "correct_predictions": correct_count,
+            "total_predictions": total_count,
+            "details": results,
+            "status": "completed" if accuracy >= 80 else "failed",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        self.results.append(test_result)
+        
+        if accuracy >= 80:
+            print("✅ INTENT DETECTION TEST PASSED (≥80% Accuracy)")
+        else:
+            print("❌ INTENT DETECTION TEST FAILED (<80% Accuracy)")
+        
+        return test_result
     
     def _run_test_workflow(self, course_request, test_id):
         """
@@ -200,6 +291,9 @@ Lernziele:
         # Test Case 2  
         result2 = self.test_case_2_data_analysis_advanced()
         
+        # Test Case 3: Intent Detection
+        result3 = self.test_case_3_intent_detection()
+        
         # Summary Report
         self._generate_summary_report()
         
@@ -254,10 +348,12 @@ def main():
             tester.test_case_1_marketing_beginner()
         elif test_case == "data":
             tester.test_case_2_data_analysis_advanced()
+        elif test_case == "intent":
+            tester.test_case_3_intent_detection()
         elif test_case == "all":
             tester.run_all_tests()
         else:
-            print("Usage: python test_use_cases.py [marketing|data|all]")
+            print("Usage: python test_use_cases.py [marketing|data|intent|all]")
     else:
         # Default: Alle Tests ausführen
         tester = TestUseCases()

@@ -797,6 +797,63 @@ def api_toggle_assistant(assistant_id):
     
     return jsonify({'success': True, 'is_active': assistant.is_active})
 
+# The new code block for creating assistants via POST
+@app.route('/api/assistants', methods=['POST'])
+@require_admin
+def api_create_assistant():
+    """Create a new assistant"""
+    try:
+        data = request.get_json()
+
+        # Basic validation
+        required_fields = ['name', 'assistant_id', 'role']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'error': f'Feld "{field}" fehlt'}), 400
+
+        # Parse enabled_tools (can be list or JSON string)
+        enabled_tools = data.get('enabled_tools', '[]')
+        if isinstance(enabled_tools, str):
+            try:
+                enabled_tools_parsed = json.loads(enabled_tools)
+            except Exception:
+                enabled_tools_parsed = []
+        else:
+            enabled_tools_parsed = enabled_tools
+
+        assistant = Assistant(
+            name=data['name'],
+            assistant_id=data['assistant_id'],
+            role=data['role'],
+            description=data.get('description', ''),
+            instructions=data.get('instructions', ''),
+            model=data.get('model', 'gpt-4o'),
+            order_index=int(data.get('order_index', 99)),
+            is_active=bool(data.get('is_active', True)),
+            temperature=float(data.get('temperature', 0.7)),
+            top_p=float(data.get('top_p', 1.0)),
+            max_tokens=int(data.get('max_tokens', 2000)),
+            frequency_penalty=float(data.get('frequency_penalty', 0.0)),
+            presence_penalty=float(data.get('presence_penalty', 0.0)),
+            retry_attempts=int(data.get('retry_attempts', 3)),
+            timeout_seconds=int(data.get('timeout_seconds', 180)),
+            error_handling=data.get('error_handling', 'graceful'),
+            response_limit=int(data.get('response_limit', 30)),
+            context_window=int(data.get('context_window', 128000)),
+            behavior_preset=data.get('behavior_preset', 'balanced'),
+            custom_system_message=data.get('custom_system_message'),
+            enabled_tools=json.dumps(enabled_tools_parsed)
+        )
+        db.session.add(assistant)
+        db.session.commit()
+
+        logger.info(f"New assistant created: {assistant.name} ({assistant.role})")
+        return jsonify({'id': assistant.id, 'success': True}), 201
+    except Exception as e:
+        logger.error(f"Error creating assistant: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 # Course Management API Endpoints
 
 @app.route('/api/courses', methods=['GET'])
@@ -1156,6 +1213,137 @@ scheduler.add_job(
 
 # Initialize database immediately (wichtig für gunicorn/Railway)
 init_database()
+
+# CREATE SPECIALIZED ASSISTANTS: Add missing assistant roles
+def create_specialized_assistants():
+    """Create specialized assistants if they don't exist"""
+    try:
+        with app.app_context():
+            # Check if specialized assistants exist
+            existing_roles = set(a.role for a in Assistant.query.all())
+            
+            specialized_assistants = [
+                {
+                    'name': 'Content Creator',
+                    'assistant_id': 'asst_content_creator_v1',
+                    'role': 'content_creator',
+                    'description': 'Spezialist für die Erstellung von strukturierten Lerninhalten',
+                    'instructions': '''Du bist ein Experte für die Erstellung von hochwertigen Lerninhalten.
+
+DEINE AUFGABE: Erstelle strukturierte, professionelle Kursinhalte basierend auf dem gegebenen Thema.
+
+STRUKTUR DEINER KURSE:
+1. Klare Lernziele (3-5 pro Kapitel)
+2. Logischer Aufbau (Einführung → Hauptinhalt → Beispiele → Zusammenfassung)
+3. Praktische Beispiele und Analogien
+4. Verständliche Sprache (max. 20 Wörter pro Satz)
+5. Strukturierte Gliederung mit Überschriften
+
+QUALITÄTSKRITERIEN:
+- Faktisch korrekt und aktuell
+- Zielgruppengerecht formuliert
+- Interaktive Elemente einbauen
+- Praxisbezug herstellen
+- Konsistente Terminologie verwenden
+
+Erstelle immer vollständige, sofort einsetzbare Kursinhalte!''',
+                    'model': 'gpt-4o',
+                    'temperature': 0.3,
+                    'max_tokens': 3000,
+                    'order_index': 2
+                },
+                {
+                    'name': 'Didactic Expert',
+                    'assistant_id': 'asst_didactic_expert_v1',
+                    'role': 'didactic_expert',
+                    'description': 'Spezialist für didaktische Optimierung von Lerninhalten',
+                    'instructions': '''Du bist ein Didaktik-Experte für die Optimierung von Lerninhalten.
+
+DEINE AUFGABE: Optimiere vorhandene Kursinhalte didaktisch und methodisch.
+
+OPTIMIERUNGSBEREICHE:
+1. LERNZIELE: Messbare, klare Ziele formulieren (SMART-Kriterien)
+2. PROGRESSION: Logische Lernpfade mit ansteigendem Schwierigkeitsgrad
+3. INTERAKTION: Fragen, Übungen, Reflexionspunkte einbauen
+4. VERSTÄNDLICHKEIT: Komplexe Konzepte vereinfachen
+5. MOTIVATION: Relevanz und Nutzen klar kommunizieren
+
+DIDAKTISCHE METHODEN:
+- Advance Organizer einsetzen
+- Chunking für bessere Merkfähigkeit
+- Beispiele vor Regeln präsentieren
+- Wiederholung in verschiedenen Kontexten
+- Aktives Lernen fördern
+
+AUSGABE: Der vollständig optimierte Kursinhalt (nicht nur Verbesserungsvorschläge)!''',
+                    'model': 'gpt-4o',
+                    'temperature': 0.4,
+                    'max_tokens': 3000,
+                    'order_index': 3
+                },
+                {
+                    'name': 'Quality Checker',
+                    'assistant_id': 'asst_quality_checker_v1',
+                    'role': 'quality_checker',
+                    'description': 'Spezialist für Qualitätskontrolle und finale Prüfung',
+                    'instructions': '''Du bist ein Qualitäts-Experte für die finale Prüfung von Kursinhalten.
+
+DEINE AUFGABE: Führe eine kritische Qualitätsprüfung durch und korrigiere Mängel.
+
+PRÜFKRITERIEN:
+1. STRUKTUR: Logischer Aufbau, klare Gliederung, vollständige Kapitel
+2. INHALT: Faktische Korrektheit, Aktualität, Praxisbezug
+3. SPRACHE: Verständlichkeit, Konsistenz, angemessener Ton
+4. DIDAKTIK: Lernziele messbar, Progression erkennbar, Beispiele vorhanden
+5. VOLLSTÄNDIGKEIT: Alle Aspekte des Themas abgedeckt
+
+QUALITÄTS-STANDARDS:
+- Mindestens 3 Lernziele pro Hauptkapitel
+- Praktische Beispiele in jedem Abschnitt
+- Klare Zusammenfassungen
+- Einheitliche Terminologie
+- Logische Kapitelübergänge
+
+AUSGABE: Der vollständig korrigierte und qualitätsgesicherte Kurs!''',
+                    'model': 'gpt-4o',
+                    'temperature': 0.2,
+                    'max_tokens': 3000,
+                    'order_index': 4
+                }
+            ]
+            
+            created_count = 0
+            for assistant_data in specialized_assistants:
+                if assistant_data['role'] not in existing_roles:
+                    assistant = Assistant(
+                        name=assistant_data['name'],
+                        assistant_id=assistant_data['assistant_id'],
+                        role=assistant_data['role'],
+                        description=assistant_data['description'],
+                        instructions=assistant_data['instructions'],
+                        model=assistant_data['model'],
+                        temperature=assistant_data['temperature'],
+                        max_tokens=assistant_data['max_tokens'],
+                        order_index=assistant_data['order_index'],
+                        is_active=True,
+                        enabled_tools='[]'  # No tools needed for specialized assistants
+                    )
+                    db.session.add(assistant)
+                    created_count += 1
+                    logger.info(f"✅ Created specialized assistant: {assistant_data['name']} ({assistant_data['role']})")
+            
+            if created_count > 0:
+                db.session.commit()
+                logger.info(f"🎯 Created {created_count} specialized assistants")
+            else:
+                logger.info("🎯 All specialized assistants already exist")
+                
+    except Exception as e:
+        logger.error(f"Error creating specialized assistants: {e}")
+        db.session.rollback()
+
+# Create specialized assistants
+create_specialized_assistants()
 
 # FORCE UPDATE: Ensure all assistants have 300s timeout (Safety measure)
 with app.app_context():
