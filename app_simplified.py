@@ -511,8 +511,14 @@ def init_database():
 # APPLICATION STARTUP
 # ==============================================
 
-if __name__ == '__main__':
+# Initialize database on import (for production and development)
+try:
     init_database()
+    logger.info("✅ Application initialization completed")
+except Exception as e:
+    logger.error(f"❌ Application initialization failed: {e}")
+
+if __name__ == '__main__':
     logger.info("Starting Kiki Chat...")
     logger.info(f"Upload folder: {app.config['UPLOAD_FOLDER']}")
     

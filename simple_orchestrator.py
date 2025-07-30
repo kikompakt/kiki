@@ -66,7 +66,21 @@ class SimpleOrchestrator:
         self.project_id = project_id
         self.session_id = session_id
         self.socketio = socketio
-        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        # Check for OpenAI API key
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            error_msg = "❌ OPENAI_API_KEY environment variable not set in Railway!"
+            logger.error(error_msg)
+            # Emit error to client
+            room = f'session_{self.session_id}'
+            self.socketio.emit('error_message', {
+                'error': error_msg + " Please set it in Railway dashboard under Variables.",
+                'timestamp': datetime.now().strftime('%H:%M:%S')
+            }, room=room)
+            raise ValueError("OPENAI_API_KEY not configured")
+        
+        self.client = OpenAI(api_key=api_key)
         
         self.thread = None
         self.current_run = None
