@@ -315,9 +315,11 @@ class SimpleOrchestrator:
                     
                     if messages.data and messages.data[0].content:
                         response = messages.data[0].content[0].text.value
+                        logger.info(f"📨 OpenAI response received: {response[:100]}...")
                         
                         # Check if this is a completed course
                         if self._is_course_creation_complete(response):
+                            logger.info("🎓 Course creation detected - saving to database")
                             course_id = self._save_course_to_database(response)
                             if course_id:
                                 # Add course links to response
@@ -330,8 +332,25 @@ class SimpleOrchestrator:
 **📚 Alle Kurse anzeigen:** [Kurs-Übersicht](/courses)
 
 Ihr Kurs wurde in der Datenbank gespeichert und ist jederzeit abrufbar!"""
+                                logger.info(f"📋 Course links added to response for course ID {course_id}")
                         
+                        logger.info("📤 About to emit message to frontend...")
                         self.emit_message(response, "assistant")
+                        
+                        # Also try alternative emission method as fallback
+                        try:
+                            self.socketio.emit('message_response', {
+                                'message': response,
+                                'sender': 'AI-Assistant',
+                                'timestamp': datetime.now().strftime('%H:%M:%S')
+                            }, room=f'session_{self.session_id}')
+                            logger.info("✅ Fallback message emission completed")
+                        except Exception as fallback_error:
+                            logger.error(f"❌ Fallback emission failed: {fallback_error}")
+                        
+                        logger.info("✅ Message emission completed")
+                    else:
+                        logger.warning("⚠️  No response content from OpenAI")
                     break
                     
                 elif run.status == "requires_action":
@@ -562,12 +581,14 @@ Führe eine kritische Qualitätsprüfung durch und gib das Ergebnis im JSON-Form
     def emit_message(self, message, sender="assistant"):
         """Send message to chat"""
         room = f'session_{self.session_id}'
+        logger.info(f"🔔 Sending message to room {room}: {message[:50]}...")
         self.socketio.emit('new_message', {
-            'sender': 'AI-Assistant' if sender == 'assistant' else sender,
+            'sender': 'AI-Assistant',
             'message': message,
             'timestamp': datetime.now().strftime('%H:%M:%S'),
-            'type': sender
+            'type': 'assistant'
         }, room=room)
+        logger.info(f"✅ Message sent to room {room}")
     
     def emit_status(self, status):
         """Send status update"""

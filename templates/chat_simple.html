@@ -173,6 +173,8 @@
             });
 
             socket.on('new_message', function(data) {
+                console.log('🔔 Frontend received new_message:', data);
+                
                 // Calculate response time
                 if (messageStartTime) {
                     const responseTime = ((Date.now() - messageStartTime) / 1000).toFixed(1);
@@ -183,6 +185,7 @@
                 addMessage(data.message, data.type, data.sender);
                 hideTypingIndicator();
                 updateStatus('Bereit für neue Nachrichten');
+                console.log('✅ Frontend message processing completed');
             });
 
             socket.on('status_update', function(data) {
@@ -192,6 +195,23 @@
             socket.on('error_message', function(data) {
                 updateStatus('❌ ' + data.error);
                 hideTypingIndicator();
+            });
+
+            // Fallback message handler
+            socket.on('message_response', function(data) {
+                console.log('🔄 Frontend received fallback message_response:', data);
+                
+                // Calculate response time
+                if (messageStartTime) {
+                    const responseTime = ((Date.now() - messageStartTime) / 1000).toFixed(1);
+                    document.getElementById('responseTime').textContent = `⚡ ${responseTime}s`;
+                    messageStartTime = null;
+                }
+                
+                addMessage(data.message, 'assistant', 'AI-Assistant');
+                hideTypingIndicator();
+                updateStatus('Bereit für neue Nachrichten');
+                console.log('✅ Frontend fallback message processing completed');
             });
         }
 
