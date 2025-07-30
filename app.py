@@ -1,14 +1,12 @@
 """
-Intelligentes KI-Kursstudio - Hauptanwendung
-MVP Version: Basis Flask-App mit Login-System und Chat-Interface Foundation
+Kiki Chat - Vereinfachtes KI-Kursstudio
+Optimiert für Railway Deployment
 
 Architecture:
 - Flask + SocketIO für Echtzeit-Kommunikation
-- SQLite für User-Management
-- Modulare Struktur für Skalierbarkeit
-- Integration mit bestehenden Agenten-Logiken
-- MEMORY MANAGEMENT: TTL-basierte Orchestrator-Cleanup
-- TYPE SAFETY: Umfassende Type-Hints für Production-Readiness
+- SQLite/PostgreSQL für Datenbank (Railway kompatibel)
+- Vereinfachte Agent-Orchestrierung
+- Direkte OpenAI Assistant Integration
 """
 
 import os
